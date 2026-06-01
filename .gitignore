@@ -1,0 +1,22 @@
+# Build folder - regenerated automatically
+build/
+
+# Visual Studio files
+.vs/
+*.user
+*.suo
+
+# Windows files
+Thumbs.db
+Desktop.ini
+
+# Compiled objects
+*.obj
+*.exe
+*.dll
+*.lib
+*.exp
+
+# CMake generated
+CMakeCache.txt
+CMakeFiles/
