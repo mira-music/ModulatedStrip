@@ -14,22 +14,35 @@ public:
 private:
     ModulatedStripProcessor& processor;
 
-    // INPUT SECTION
+    // INPUT
     juce::Slider inputGainSlider;
     juce::Label  inputGainLabel;
 
-    // SATURATION SECTION
+    // SATURATION
+    juce::ComboBox satModelSelector;
     juce::Slider driveSlider;
     juce::Label  driveLabel;
-
     juce::Slider satMixSlider;
     juce::Label  satMixLabel;
 
-    juce::ComboBox satModelSelector;
-    juce::Label    satModelLabel;
+    // COMPRESSOR
+    juce::ComboBox compModelSelector;
+    juce::Slider thresholdSlider;
+    juce::Label  thresholdLabel;
+    juce::Slider ratioSlider;
+    juce::Label  ratioLabel;
+    juce::Slider attackSlider;
+    juce::Label  attackLabel;
+    juce::Slider releaseSlider;
+    juce::Label  releaseLabel;
+    juce::Slider makeupSlider;
+    juce::Label  makeupLabel;
+    juce::Slider compMixSlider;
+    juce::Label  compMixLabel;
+    juce::Slider kneeSlider;
+    juce::Label  kneeLabel;
 
-    // Parameter attachments
-    // These sync the UI controls to the parameters
+    // ATTACHMENTS
     std::unique_ptr<juce::AudioProcessorValueTreeState
         ::SliderAttachment> inputGainAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState
@@ -38,11 +51,26 @@ private:
         ::SliderAttachment> satMixAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState
         ::ComboBoxAttachment> satModelAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> thresholdAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> ratioAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> attackAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> releaseAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> makeupAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> compMixAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::SliderAttachment> kneeAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState
+        ::ComboBoxAttachment> compModelAttachment;
 
-    // Helper to set up a knob consistently
-    void setupKnob(juce::Slider& slider, 
+    void setupKnob(juce::Slider& slider,
                    juce::Label& label,
-                   const juce::String& labelText);
+                   const juce::String& text);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripEditor)
