@@ -39,29 +39,22 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
-    // Metering - read by editor at 30Hz
-    float getOutputPeak()      const 
+    float getOutputPeak()    const
         { return outputPeak.load(); }
-    float getInputPeak()       const 
+    float getInputPeak()     const
         { return inputPeak.load(); }
-    float getGainReduction()   const
+    float getGainReduction() const
         { return compressor.getGainReduction(); }
 
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout
         createParameters();
 
-    // DSP modules
     SaturationProcessor saturation;
     CompressorProcessor compressor;
     EQProcessor         equalizer;
 
-    //──────────────────────────────────────────────
-    // P1 FIX - Cached parameter pointers
-    // Set once in constructor
-    // Read directly in processBlock
-    // No string lookup on audio thread
-    //──────────────────────────────────────────────
+    // Cached parameter pointers
     std::atomic<float>* pInputGain     = nullptr;
     std::atomic<float>* pOutputGain    = nullptr;
     std::atomic<float>* pDrive         = nullptr;
@@ -89,11 +82,7 @@ private:
     std::atomic<float>* pEqBypass      = nullptr;
     std::atomic<float>* pEqPreComp     = nullptr;
 
-    //──────────────────────────────────────────────
-    // P1 FIX - Parameter smoothing
-    // Eliminates zipper noise and click artifacts
-    // Essential for live performance use
-    //──────────────────────────────────────────────
+    // Smoothed parameters
     juce::SmoothedValue<float,
         juce::ValueSmoothingTypes::Linear> inputGainSmoothed;
     juce::SmoothedValue<float,
@@ -102,11 +91,33 @@ private:
         juce::ValueSmoothingTypes::Linear> driveSmoothed;
     juce::SmoothedValue<float,
         juce::ValueSmoothingTypes::Linear> makeupSmoothed;
+    juce::SmoothedValue<float,
+        juce::ValueSmoothingTypes::Linear> satMixSmoothed;
+    juce::SmoothedValue<float,
+        juce::ValueSmoothingTypes::Linear> compMixSmoothed;
 
-    // Metering atomics - written by audio thread
-    // read by GUI thread safely
+    // Metering
     std::atomic<float> inputPeak  { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
+
+    // CRITICAL FIX - output soft clipper
+    // Protects against level excursions during model switches
+    // Transparent tanh soft clip at -0.5dBFS
+    inline float softClip(float x)
+    {
+        const float ceiling = 0.944f; // -0.5dBFS
+        if (x > ceiling || x < -ceiling)
+            return ceiling * safeTanh(x / ceiling);
+        return x;
+    }
+
+    inline float safeTanh(float x)
+    {
+        if (x >  3.0f) return  1.0f;
+        if (x < -3.0f) return -1.0f;
+        float x2 = x * x;
+        return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)

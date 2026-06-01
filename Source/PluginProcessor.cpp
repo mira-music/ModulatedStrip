@@ -10,12 +10,7 @@ ModulatedStripProcessor::ModulatedStripProcessor()
                 juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "Parameters", createParameters())
 {
-    //──────────────────────────────────────────────
-    // P1 FIX - Cache all parameter pointers here
-    // This runs once at plugin load
-    // processBlock reads cached pointers directly
-    // No string map lookups on audio thread
-    //──────────────────────────────────────────────
+    // Cache all parameter pointers once
     pInputGain     = apvts.getRawParameterValue("inputGain");
     pOutputGain    = apvts.getRawParameterValue("outputGain");
     pDrive         = apvts.getRawParameterValue("drive");
@@ -53,20 +48,34 @@ void ModulatedStripProcessor::prepareToPlay(
     compressor.prepare(sampleRate);
     equalizer.prepare(sampleRate);
 
-    //──────────────────────────────────────────────
-    // P1 FIX - Initialize smoothed values
-    // Time in seconds for parameter to ramp
-    // 10ms for gain - 20ms for drive and freq
-    //──────────────────────────────────────────────
-    inputGainSmoothed .reset(sampleRate, 0.01);
-    outputGainSmoothed.reset(sampleRate, 0.01);
-    driveSmoothed     .reset(sampleRate, 0.02);
-    makeupSmoothed    .reset(sampleRate, 0.01);
+    // Initialize all smoothed values
+    // setCurrentAndTargetValue sets both immediately
+    // No ramp on first block
+    double sr = sampleRate;
 
-    inputGainSmoothed .setCurrentAndTargetValue(1.0f);
-    outputGainSmoothed.setCurrentAndTargetValue(1.0f);
-    driveSmoothed     .setCurrentAndTargetValue(0.0f);
-    makeupSmoothed    .setCurrentAndTargetValue(1.0f);
+    inputGainSmoothed .reset(sr, 0.010);
+    outputGainSmoothed.reset(sr, 0.010);
+    driveSmoothed     .reset(sr, 0.020);
+    makeupSmoothed    .reset(sr, 0.010);
+    satMixSmoothed    .reset(sr, 0.020);
+    compMixSmoothed   .reset(sr, 0.020);
+
+    // Set starting values from current parameters
+    inputGainSmoothed .setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(
+            pInputGain->load()));
+    outputGainSmoothed.setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(
+            pOutputGain->load()));
+    driveSmoothed     .setCurrentAndTargetValue(
+        pDrive->load() / 100.0f);
+    makeupSmoothed    .setCurrentAndTargetValue(
+        juce::Decibels::decibelsToGain(
+            pCompMakeup->load()));
+    satMixSmoothed    .setCurrentAndTargetValue(
+        pSatMix->load() / 100.0f);
+    compMixSmoothed   .setCurrentAndTargetValue(
+        pCompMix->load() / 100.0f);
 
     (void)samplesPerBlock;
 }
@@ -89,8 +98,7 @@ void ModulatedStripProcessor::processBlock(
     int numChannels = buffer.getNumChannels();
 
     //──────────────────────────────────────────────
-    // READ ALL PARAMETERS
-    // Using cached pointers - no string lookups
+    // READ PARAMETERS (cached pointers - no string lookup)
     //──────────────────────────────────────────────
     float inputGainDb  = pInputGain->load();
     float outputGainDb = pOutputGain->load();
@@ -122,9 +130,10 @@ void ModulatedStripProcessor::processBlock(
     bool  eqPreComp    = pEqPreComp->load()  > 0.5f;
 
     //──────────────────────────────────────────────
-    // UPDATE SMOOTHED VALUES
-    // These ramp gradually to target
-    // Preventing zipper noise and clicks
+    // CRITICAL FIX - SET SMOOTHED TARGETS
+    // Do NOT call getNextValue() here
+    // Just set the target for this block
+    // getNextValue() called inside the sample loop
     //──────────────────────────────────────────────
     inputGainSmoothed .setTargetValue(
         juce::Decibels::decibelsToGain(inputGainDb));
@@ -133,11 +142,11 @@ void ModulatedStripProcessor::processBlock(
     driveSmoothed     .setTargetValue(drive);
     makeupSmoothed    .setTargetValue(
         juce::Decibels::decibelsToGain(compMakeup));
+    satMixSmoothed    .setTargetValue(satMix);
+    compMixSmoothed   .setTargetValue(compMix);
 
     //──────────────────────────────────────────────
-    // UPDATE EQ PARAMETERS
-    // EQ uses dirty flag internally
-    // Only recalculates when something changed
+    // UPDATE EQ (dirty flag handles recalculation)
     //──────────────────────────────────────────────
     equalizer.setModel    (eqModel);
     equalizer.setLowGain  (eqLowGain);
@@ -150,16 +159,17 @@ void ModulatedStripProcessor::processBlock(
     equalizer.setHPF      (eqHPF);
 
     //──────────────────────────────────────────────
-    // STAGE 1 - INPUT GAIN (smoothed)
+    // MEASURE INPUT PEAK
     //──────────────────────────────────────────────
-    // Measure input peak before processing
     float inPeak = 0.0f;
     for (int ch = 0; ch < numChannels; ch++)
         inPeak = std::max(inPeak,
             buffer.getMagnitude(ch, 0, numSamples));
     inputPeak.store(inPeak);
 
-    // Apply smoothed input gain sample by sample
+    //──────────────────────────────────────────────
+    // STAGE 1 - INPUT GAIN (smoothed per sample)
+    //──────────────────────────────────────────────
     for (int i = 0; i < numSamples; i++)
     {
         float g = inputGainSmoothed.getNextValue();
@@ -167,74 +177,60 @@ void ModulatedStripProcessor::processBlock(
             buffer.setSample(ch, i,
                 buffer.getSample(ch, i) * g);
     }
-    // Reset smoothed value back to start of block
-    // so EQ pre/post ordering can use same smoothing
-    inputGainSmoothed.setCurrentAndTargetValue(
-        juce::Decibels::decibelsToGain(inputGainDb));
 
     //──────────────────────────────────────────────
-    // STAGE 2 - SATURATION
+    // STAGE 2 - SATURATION (smoothed drive)
     //──────────────────────────────────────────────
     if (!satBypassed)
     {
-        float currentDrive = driveSmoothed.getNextValue();
-        driveSmoothed.setCurrentAndTargetValue(
-            currentDrive);
-        saturation.process(buffer, currentDrive,
-                           satMix, satModel);
+        // Get smoothed values for this block
+        // CRITICAL FIX: snapshot the smoother state
+        // then pass current value - do not call
+        // getNextValue twice for drive and mix
+        float currentDrive   = driveSmoothed  .getNextValue();
+        float currentSatMix  = satMixSmoothed .getNextValue();
+
+        // Restore smoother position for accurate ramp
+        // by processing remaining samples inside sat module
+        driveSmoothed .setCurrentAndTargetValue(currentDrive);
+        satMixSmoothed.setCurrentAndTargetValue(currentSatMix);
+
+        saturation.process(buffer,
+                           currentDrive,
+                           currentSatMix,
+                           satModel);
     }
 
     //──────────────────────────────────────────────
     // STAGE 3 & 4 - EQ AND COMPRESSOR
-    // Order depends on eqPreComp switch
-    // eqPreComp = true  → EQ before compressor
-    // eqPreComp = false → compressor before EQ
+    // Order controlled by eqPreComp switch
     //──────────────────────────────────────────────
+
+    // Setup compressor parameters
+    // Model change triggers state reset internally
+    compressor.setModel    (compModel);
+    compressor.setThreshold(compThresh);
+    compressor.setRatio    (compRatio);
+    compressor.setAttack   (compAttack);
+    compressor.setRelease  (compRelease);
+    compressor.setMix      (compMixSmoothed.getNextValue());
+    compressor.setKnee     (compKnee);
+    compressor.setMakeupSmoothed(makeupSmoothed);
+
     if (eqPreComp)
     {
-        // EQ → COMP
-        if (!eqBypassed)
-            equalizer.process(buffer);
-
-        if (!compBypassed)
-        {
-            compressor.setModel    (compModel);
-            compressor.setThreshold(compThresh);
-            compressor.setRatio    (compRatio);
-            compressor.setAttack   (compAttack);
-            compressor.setRelease  (compRelease);
-            compressor.setMakeupSmoothed(makeupSmoothed);
-            compressor.setMix      (compMix);
-            compressor.setKnee     (compKnee);
-            compressor.process     (buffer);
-        }
+        if (!eqBypassed)  equalizer.process(buffer);
+        if (!compBypassed) compressor.process(buffer);
     }
     else
     {
-        // COMP → EQ (default analog desk order)
-        if (!compBypassed)
-        {
-            compressor.setModel    (compModel);
-            compressor.setThreshold(compThresh);
-            compressor.setRatio    (compRatio);
-            compressor.setAttack   (compAttack);
-            compressor.setRelease  (compRelease);
-            compressor.setMakeupSmoothed(makeupSmoothed);
-            compressor.setMix      (compMix);
-            compressor.setKnee     (compKnee);
-            compressor.process     (buffer);
-        }
-
-        if (!eqBypassed)
-            equalizer.process(buffer);
+        if (!compBypassed) compressor.process(buffer);
+        if (!eqBypassed)  equalizer.process(buffer);
     }
 
     //──────────────────────────────────────────────
-    // STAGE 5 - OUTPUT GAIN (smoothed)
+    // STAGE 5 - OUTPUT GAIN (smoothed per sample)
     //──────────────────────────────────────────────
-    outputGainSmoothed.setTargetValue(
-        juce::Decibels::decibelsToGain(outputGainDb));
-
     for (int i = 0; i < numSamples; i++)
     {
         float g = outputGainSmoothed.getNextValue();
@@ -243,7 +239,22 @@ void ModulatedStripProcessor::processBlock(
                 buffer.getSample(ch, i) * g);
     }
 
-    // Measure output peak for meter
+    //──────────────────────────────────────────────
+    // CRITICAL FIX - OUTPUT SOFT CLIPPER
+    // Transparent tanh at -0.5dBFS
+    // Prevents excursions during model switches
+    // Essential for live PA use
+    //──────────────────────────────────────────────
+    for (int ch = 0; ch < numChannels; ch++)
+    {
+        float* data = buffer.getWritePointer(ch);
+        for (int i = 0; i < numSamples; i++)
+            data[i] = softClip(data[i]);
+    }
+
+    //──────────────────────────────────────────────
+    // MEASURE OUTPUT PEAK
+    //──────────────────────────────────────────────
     float outPeak = 0.0f;
     for (int ch = 0; ch < numChannels; ch++)
         outPeak = std::max(outPeak,
@@ -392,10 +403,10 @@ ModulatedStripProcessor::createParameters()
             20.0f, 500.0f, 20.0f));
     params.push_back(
         std::make_unique<juce::AudioParameterBool>(
-            "eqBypass",   "EQ Bypass",  false));
+            "eqBypass",  "EQ Bypass",   false));
     params.push_back(
         std::make_unique<juce::AudioParameterBool>(
-            "eqPreComp",  "EQ Pre Comp", false));
+            "eqPreComp", "EQ Pre Comp", false));
 
     return { params.begin(), params.end() };
 }
