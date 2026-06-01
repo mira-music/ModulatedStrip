@@ -6,225 +6,504 @@ ModulatedStripEditor::ModulatedStripEditor(
 {
     setSize(1100, 600);
 
+    auto& apvts = processor.apvts;
+
     //──────────────────────────────────────────────
     // INPUT
     //──────────────────────────────────────────────
-    setupKnob(inputGainSlider, inputGainLabel, "INPUT");
+    inputGainKnob.setName("INPUT");
+    addAndMakeVisible(inputGainKnob);
 
     //──────────────────────────────────────────────
     // SATURATION
     //──────────────────────────────────────────────
-    setupKnob(driveSlider,  driveLabel,  "DRIVE");
-    setupKnob(satMixSlider, satMixLabel, "SAT MIX");
+    driveKnob .setName("DRIVE");
+    satMixKnob.setName("SAT MIX");
+    addAndMakeVisible(driveKnob);
+    addAndMakeVisible(satMixKnob);
 
     setupCombo(satModelSelector, {
         "NEVE", "SSL", "API", "TUBE",
         "TAPE", "FET", "IRON"});
-
     addAndMakeVisible(satBypassBtn);
 
     //──────────────────────────────────────────────
     // COMPRESSOR
     //──────────────────────────────────────────────
-    setupKnob(thresholdSlider, thresholdLabel, "THRESH");
-    setupKnob(ratioSlider,     ratioLabel,     "RATIO");
-    setupKnob(attackSlider,    attackLabel,    "ATTACK");
-    setupKnob(releaseSlider,   releaseLabel,   "RELEASE");
-    setupKnob(makeupSlider,    makeupLabel,    "MAKEUP");
-    setupKnob(compMixSlider,   compMixLabel,   "MIX");
-    setupKnob(kneeSlider,      kneeLabel,      "KNEE");
+    thresholdKnob.setName("THRESH");
+    ratioKnob    .setName("RATIO");
+    attackKnob   .setName("ATTACK");
+    releaseKnob  .setName("RELEASE");
+    makeupKnob   .setName("MAKEUP");
+    compMixKnob  .setName("MIX");
+    kneeKnob     .setName("KNEE");
+
+    addAndMakeVisible(thresholdKnob);
+    addAndMakeVisible(ratioKnob);
+    addAndMakeVisible(attackKnob);
+    addAndMakeVisible(releaseKnob);
+    addAndMakeVisible(makeupKnob);
+    addAndMakeVisible(compMixKnob);
+    addAndMakeVisible(kneeKnob);
 
     setupCombo(compModelSelector, {
         "SSL Bus", "Fairchild 670",
         "LA-2A", "1176", "API 2500"});
-
     addAndMakeVisible(compBypassBtn);
+
+    // Model specific compressor controls
+    setupCombo(fairchildTCSelector, {
+        "TC 1  (0.2ms / 0.3s)",
+        "TC 2  (0.2ms / 0.8s)",
+        "TC 3  (0.4ms / 2.0s)",
+        "TC 4  (0.4ms / Auto)",
+        "TC 5  (0.4ms / 5.0s)",
+        "TC 6  (0.4ms / Auto fast)"});
+    fairchildTCSelector.setVisible(false);
+    addAndMakeVisible(fairchildTCSelector);
+
+    allInBtn   .setVisible(false);
+    thrustBtn  .setVisible(false);
+    topologyBtn.setVisible(false);
+    la2aLimitBtn.setVisible(false);
+
+    addAndMakeVisible(allInBtn);
+    addAndMakeVisible(thrustBtn);
+    addAndMakeVisible(topologyBtn);
+    addAndMakeVisible(la2aLimitBtn);
+
+    compModelHintLabel.setFont(juce::Font(
+        juce::FontOptions(9.0f)));
+    compModelHintLabel.setColour(
+        juce::Label::textColourId,
+        juce::Colour(0xFF888888));
+    compModelHintLabel.setJustificationType(
+        juce::Justification::centred);
+    addAndMakeVisible(compModelHintLabel);
 
     //──────────────────────────────────────────────
     // EQ
     //──────────────────────────────────────────────
-    setupKnob(eqLowGainSlider,  eqLowGainLabel,  "LOW");
-    setupKnob(eqLowFreqSlider,  eqLowFreqLabel,  "LO FRQ");
-    setupKnob(eqMidGainSlider,  eqMidGainLabel,  "MID");
-    setupKnob(eqMidFreqSlider,  eqMidFreqLabel,  "MI FRQ");
-    setupKnob(eqMidQSlider,     eqMidQLabel,     "MID Q");
-    setupKnob(eqHighGainSlider, eqHighGainLabel, "HIGH");
-    setupKnob(eqHighFreqSlider, eqHighFreqLabel, "HI FRQ");
-    setupKnob(eqHPFSlider,      eqHPFLabel,      "HPF");
+    eqLowGainKnob .setName("LOW");
+    eqLowFreqKnob .setName("LO FRQ");
+    eqMidGainKnob .setName("MID");
+    eqMidFreqKnob .setName("MI FRQ");
+    eqMidQKnob    .setName("MID Q");
+    eqHighGainKnob.setName("HIGH");
+    eqHighFreqKnob.setName("HI FRQ");
+    eqHPFKnob     .setName("HPF");
+
+    addAndMakeVisible(eqLowGainKnob);
+    addAndMakeVisible(eqLowFreqKnob);
+    addAndMakeVisible(eqMidGainKnob);
+    addAndMakeVisible(eqMidFreqKnob);
+    addAndMakeVisible(eqMidQKnob);
+    addAndMakeVisible(eqHighGainKnob);
+    addAndMakeVisible(eqHighFreqKnob);
+    addAndMakeVisible(eqHPFKnob);
 
     setupCombo(eqModelSelector, {
         "Neve 1073", "Neve 1084", "SSL 4000E",
         "Pultec EQP-1A", "API 550A"});
-
     addAndMakeVisible(eqBypassBtn);
     addAndMakeVisible(eqPreCompBtn);
+
+    eqModelHintLabel.setFont(juce::Font(
+        juce::FontOptions(9.0f)));
+    eqModelHintLabel.setColour(
+        juce::Label::textColourId,
+        juce::Colour(0xFF888888));
+    eqModelHintLabel.setJustificationType(
+        juce::Justification::centred);
+    addAndMakeVisible(eqModelHintLabel);
 
     //──────────────────────────────────────────────
     // OUTPUT
     //──────────────────────────────────────────────
-    setupKnob(outputGainSlider, outputGainLabel, "OUTPUT");
+    outputGainKnob.setName("OUTPUT");
+    addAndMakeVisible(outputGainKnob);
 
     //──────────────────────────────────────────────
     // METERS
     //──────────────────────────────────────────────
+    grMeter.setIsGainReduction(true);
     addAndMakeVisible(inputMeter);
     addAndMakeVisible(outputMeter);
     addAndMakeVisible(grMeter);
-
-    grMeter.setIsGainReduction(true);
-
-    auto setupMeterLabel = [this](
-        juce::Label& label,
-        const juce::String& text)
-    {
-        label.setText(text,
-            juce::dontSendNotification);
-        label.setColour(
-            juce::Label::textColourId,
-            juce::Colour(0xFF888888));
-        label.setFont(juce::Font(
-            juce::FontOptions(9.0f)));
-        label.setJustificationType(
-            juce::Justification::centred);
-        addAndMakeVisible(label);
-    };
 
     setupMeterLabel(inputMeterLabel,  "IN");
     setupMeterLabel(outputMeterLabel, "OUT");
     setupMeterLabel(grMeterLabel,     "GR");
 
     //──────────────────────────────────────────────
-    // ALL PARAMETER ATTACHMENTS
+    // PARAMETER ATTACHMENTS
     //──────────────────────────────────────────────
-    auto& avpts = processor.apvts;
+    inputGainAtt = std::make_unique<SliderAtt>(
+        apvts, "inputGain",
+        inputGainKnob.getSlider());
 
-    inputGainAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "inputGain", inputGainSlider);
+    driveAtt = std::make_unique<SliderAtt>(
+        apvts, "drive", driveKnob.getSlider());
+    satMixAtt = std::make_unique<SliderAtt>(
+        apvts, "satMix", satMixKnob.getSlider());
+    satModelAtt = std::make_unique<ComboAtt>(
+        apvts, "satModel", satModelSelector);
+    satBypassAtt = std::make_unique<ButtonAtt>(
+        apvts, "satBypass", satBypassBtn);
 
-    driveAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "drive", driveSlider);
-    satMixAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "satMix", satMixSlider);
-    satModelAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ComboBoxAttachment>(
-        avpts, "satModel", satModelSelector);
-    satBypassAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ButtonAttachment>(
-        avpts, "satBypass", satBypassBtn);
+    thresholdAtt = std::make_unique<SliderAtt>(
+        apvts, "compThreshold",
+        thresholdKnob.getSlider());
+    ratioAtt = std::make_unique<SliderAtt>(
+        apvts, "compRatio",
+        ratioKnob.getSlider());
+    attackAtt = std::make_unique<SliderAtt>(
+        apvts, "compAttack",
+        attackKnob.getSlider());
+    releaseAtt = std::make_unique<SliderAtt>(
+        apvts, "compRelease",
+        releaseKnob.getSlider());
+    makeupAtt = std::make_unique<SliderAtt>(
+        apvts, "compMakeup",
+        makeupKnob.getSlider());
+    compMixAtt = std::make_unique<SliderAtt>(
+        apvts, "compMix",
+        compMixKnob.getSlider());
+    kneeAtt = std::make_unique<SliderAtt>(
+        apvts, "compKnee",
+        kneeKnob.getSlider());
+    compModelAtt = std::make_unique<ComboAtt>(
+        apvts, "compModel", compModelSelector);
+    compBypassAtt = std::make_unique<ButtonAtt>(
+        apvts, "compBypass", compBypassBtn);
 
-    thresholdAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compThreshold", thresholdSlider);
-    ratioAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compRatio", ratioSlider);
-    attackAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compAttack", attackSlider);
-    releaseAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compRelease", releaseSlider);
-    makeupAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compMakeup", makeupSlider);
-    compMixAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compMix", compMixSlider);
-    kneeAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "compKnee", kneeSlider);
-    compModelAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ComboBoxAttachment>(
-        avpts, "compModel", compModelSelector);
-    compBypassAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ButtonAttachment>(
-        avpts, "compBypass", compBypassBtn);
+    eqLowGainAtt = std::make_unique<SliderAtt>(
+        apvts, "eqLowGain",
+        eqLowGainKnob.getSlider());
+    eqLowFreqAtt = std::make_unique<SliderAtt>(
+        apvts, "eqLowFreq",
+        eqLowFreqKnob.getSlider());
+    eqMidGainAtt = std::make_unique<SliderAtt>(
+        apvts, "eqMidGain",
+        eqMidGainKnob.getSlider());
+    eqMidFreqAtt = std::make_unique<SliderAtt>(
+        apvts, "eqMidFreq",
+        eqMidFreqKnob.getSlider());
+    eqMidQAtt = std::make_unique<SliderAtt>(
+        apvts, "eqMidQ",
+        eqMidQKnob.getSlider());
+    eqHighGainAtt = std::make_unique<SliderAtt>(
+        apvts, "eqHighGain",
+        eqHighGainKnob.getSlider());
+    eqHighFreqAtt = std::make_unique<SliderAtt>(
+        apvts, "eqHighFreq",
+        eqHighFreqKnob.getSlider());
+    eqHPFAtt = std::make_unique<SliderAtt>(
+        apvts, "eqHPF",
+        eqHPFKnob.getSlider());
+    eqModelAtt = std::make_unique<ComboAtt>(
+        apvts, "eqModel", eqModelSelector);
+    eqBypassAtt = std::make_unique<ButtonAtt>(
+        apvts, "eqBypass", eqBypassBtn);
+    eqPreCompAtt = std::make_unique<ButtonAtt>(
+        apvts, "eqPreComp", eqPreCompBtn);
 
-    eqLowGainAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqLowGain", eqLowGainSlider);
-    eqLowFreqAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqLowFreq", eqLowFreqSlider);
-    eqMidGainAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqMidGain", eqMidGainSlider);
-    eqMidFreqAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqMidFreq", eqMidFreqSlider);
-    eqMidQAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqMidQ", eqMidQSlider);
-    eqHighGainAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqHighGain", eqHighGainSlider);
-    eqHighFreqAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqHighFreq", eqHighFreqSlider);
-    eqHPFAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "eqHPF", eqHPFSlider);
-    eqModelAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ComboBoxAttachment>(
-        avpts, "eqModel", eqModelSelector);
-    eqBypassAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ButtonAttachment>(
-        avpts, "eqBypass", eqBypassBtn);
-    eqPreCompAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::ButtonAttachment>(
-        avpts, "eqPreComp", eqPreCompBtn);
+    outputGainAtt = std::make_unique<SliderAtt>(
+        apvts, "outputGain",
+        outputGainKnob.getSlider());
 
-    outputGainAttachment = std::make_unique<
-        juce::AudioProcessorValueTreeState
-        ::SliderAttachment>(
-        avpts, "outputGain", outputGainSlider);
+    // Listen to model selectors for UI updates
+    compModelSelector.addListener(this);
+    eqModelSelector.addListener(this);
 
-    // Start meter timer at 30Hz
+    // Set initial UI state
+    updateCompressorUI(compModelSelector.getSelectedId() - 1);
+    updateEQUI(eqModelSelector.getSelectedId() - 1);
+
     startTimerHz(30);
 }
 
 ModulatedStripEditor::~ModulatedStripEditor()
 {
+    compModelSelector.removeListener(this);
+    eqModelSelector.removeListener(this);
     stopTimer();
 }
 
 //==============================================================================
-// TIMER - Updates meters at 30Hz
+// COMBO BOX LISTENER
+// Called when user changes model selector
+//==============================================================================
+void ModulatedStripEditor::comboBoxChanged(
+    juce::ComboBox* box)
+{
+    if (box == &compModelSelector)
+        updateCompressorUI(
+            compModelSelector.getSelectedId() - 1);
+
+    if (box == &eqModelSelector)
+        updateEQUI(
+            eqModelSelector.getSelectedId() - 1);
+}
+
+//==============================================================================
+// COMPRESSOR UI STATE MACHINE
+// Each model reconfigures the controls
+//==============================================================================
+void ModulatedStripEditor::updateCompressorUI(
+    int modelIndex)
+{
+    // Reset all model-specific controls first
+    fairchildTCSelector.setVisible(false);
+    allInBtn           .setVisible(false);
+    thrustBtn          .setVisible(false);
+    topologyBtn        .setVisible(false);
+    la2aLimitBtn       .setVisible(false);
+
+    // Reset all knobs to active state
+    thresholdKnob.setModelState(true);
+    ratioKnob    .setModelState(true);
+    attackKnob   .setModelState(true);
+    releaseKnob  .setModelState(true);
+    makeupKnob   .setModelState(true);
+    kneeKnob     .setModelState(true);
+
+    thresholdKnob.setName("THRESH");
+    ratioKnob    .setName("RATIO");
+    attackKnob   .setName("ATTACK");
+    releaseKnob  .setName("RELEASE");
+    makeupKnob   .setName("MAKEUP");
+    compModelHintLabel.setText("",
+        juce::dontSendNotification);
+
+    switch (modelIndex)
+    {
+        case 0: // SSL Bus
+        {
+            // Authentic SSL character info
+            compModelHintLabel.setText(
+                "VCA · Glue · Punchy",
+                juce::dontSendNotification);
+
+            // Knee defaults hard on SSL
+            kneeKnob.setName("KNEE");
+            break;
+        }
+
+        case 1: // Fairchild 670
+        {
+            compModelHintLabel.setText(
+                "Vari-Mu · Tube · Smooth",
+                juce::dontSendNotification);
+
+            // Attack and release replaced by
+            // 6-position time constant selector
+            attackKnob .setModelState(false,
+                "TIME CONST");
+            releaseKnob.setModelState(false,
+                "→ TC SELECT");
+
+            // Show time constant selector
+            fairchildTCSelector.setVisible(true);
+
+            // Ratio is fixed at ~3:1 for vari-mu
+            ratioKnob.setModelState(false, "3:1 FIXED");
+
+            // Very soft knee - tube physics
+            kneeKnob.setName("KNEE (soft)");
+            break;
+        }
+
+        case 2: // LA-2A
+        {
+            compModelHintLabel.setText(
+                "Opto · T4B · Musical",
+                juce::dontSendNotification);
+
+            // Attack is fixed by opto physics
+            attackKnob.setModelState(false, "OPTICAL");
+
+            // Ratio replaced by compress/limit toggle
+            ratioKnob.setModelState(false,
+                "COMP/LIMIT");
+            la2aLimitBtn.setVisible(true);
+
+            // Threshold renamed Peak Reduction
+            thresholdKnob.setName("PEAK RED");
+
+            // Makeup renamed Gain
+            makeupKnob.setName("GAIN");
+
+            // Knee handled by opto physics
+            kneeKnob.setModelState(false, "OPTICAL");
+            break;
+        }
+
+        case 3: // 1176 FET
+        {
+            compModelHintLabel.setText(
+                "FET · Fast · Aggressive",
+                juce::dontSendNotification);
+
+            // Threshold renamed Input
+            thresholdKnob.setName("INPUT");
+
+            // Attack note - runs backwards
+            attackKnob.setName("ATTACK←");
+
+            // All-buttons-in mode
+            allInBtn.setVisible(true);
+
+            // Tight FET knee
+            kneeKnob.setName("KNEE (FET)");
+            break;
+        }
+
+        case 4: // API 2500
+        {
+            compModelHintLabel.setText(
+                "VCA · Thrust · Dense",
+                juce::dontSendNotification);
+
+            // API specific controls
+            thrustBtn  .setVisible(true);
+            topologyBtn.setVisible(true);
+
+            // New/Old knee modes
+            kneeKnob.setName("NEW/OLD");
+            break;
+        }
+    }
+
+    resized();
+    repaint();
+}
+
+//==============================================================================
+// EQ UI STATE MACHINE
+// Each model reconfigures the EQ controls
+//==============================================================================
+void ModulatedStripEditor::updateEQUI(int modelIndex)
+{
+    // Reset all EQ knobs to active
+    eqLowGainKnob .setModelState(true);
+    eqLowFreqKnob .setModelState(true);
+    eqMidGainKnob .setModelState(true);
+    eqMidFreqKnob .setModelState(true);
+    eqMidQKnob    .setModelState(true);
+    eqHighGainKnob.setModelState(true);
+    eqHighFreqKnob.setModelState(true);
+    eqHPFKnob     .setModelState(true);
+
+    eqLowGainKnob .setName("LOW");
+    eqLowFreqKnob .setName("LO FRQ");
+    eqMidGainKnob .setName("MID");
+    eqMidFreqKnob .setName("MI FRQ");
+    eqMidQKnob    .setName("MID Q");
+    eqHighGainKnob.setName("HIGH");
+    eqHighFreqKnob.setName("HI FRQ");
+    eqHPFKnob     .setName("HPF");
+    eqModelHintLabel.setText("",
+        juce::dontSendNotification);
+
+    switch (modelIndex)
+    {
+        case 0: // Neve 1073
+        {
+            eqModelHintLabel.setText(
+                "Transformer · Inductor · Bloom",
+                juce::dontSendNotification);
+
+            // Proportional Q - user cannot control
+            eqMidQKnob.setModelState(false,
+                "PROP-Q");
+
+            // Low shelf is boost only
+            eqLowGainKnob.setName("LOW BOOST");
+
+            // HPF is 6dB/oct - label it
+            eqHPFKnob.setName("HPF 6dB");
+            break;
+        }
+
+        case 1: // Neve 1084
+        {
+            eqModelHintLabel.setText(
+                "Transformer · Class A · Musical",
+                juce::dontSendNotification);
+
+            // Proportional Q but user can add to it
+            eqMidQKnob.setModelState(false,
+                "PROP-Q");
+
+            // 1084 allows low shelf cut
+            eqLowGainKnob.setName("LOW ±");
+
+            eqHPFKnob.setName("HPF 6dB");
+            break;
+        }
+
+        case 2: // SSL 4000E
+        {
+            eqModelHintLabel.setText(
+                "SVF · Clean · Transparent",
+                juce::dontSendNotification);
+
+            // Constant Q - Q knob does nothing on SSL
+            eqMidQKnob.setModelState(false,
+                "CONST Q");
+
+            // HPF is 18dB/oct on SSL
+            eqHPFKnob.setName("HPF 18dB");
+            break;
+        }
+
+        case 3: // Pultec EQP-1A
+        {
+            eqModelHintLabel.setText(
+                "Passive LC · Tube · Phase Bloom",
+                juce::dontSendNotification);
+
+            // Pultec has no HPF
+            eqHPFKnob.setModelState(false, "NO HPF");
+
+            // Low is boost only on Pultec
+            eqLowGainKnob.setName("LO BOOST");
+
+            // Q is fixed by LC network
+            eqMidQKnob.setModelState(false,
+                "LC FIXED");
+            break;
+        }
+
+        case 4: // API 550A
+        {
+            eqModelHintLabel.setText(
+                "Discrete · Aggressive · Focused",
+                juce::dontSendNotification);
+
+            // Proportional Q - quadratic growth
+            eqMidQKnob.setModelState(false,
+                "PROP-Q");
+
+            // HPF is 18dB/oct on API
+            eqHPFKnob.setName("HPF 18dB");
+            break;
+        }
+    }
+
+    resized();
+    repaint();
+}
+
+//==============================================================================
+// TIMER - Meters at 30Hz
 //==============================================================================
 void ModulatedStripEditor::timerCallback()
 {
     inputMeter .setLevel(processor.getInputPeak());
     outputMeter.setLevel(processor.getOutputPeak());
 
-    // GR meter - convert negative dB to positive
     float gr = std::abs(processor.getGainReduction());
     float grLinear = juce::Decibels::decibelsToGain(
         -gr, -60.0f);
@@ -234,70 +513,32 @@ void ModulatedStripEditor::timerCallback()
 //==============================================================================
 // SETUP HELPERS
 //==============================================================================
-void ModulatedStripEditor::setupKnob(
-    juce::Slider& slider,
-    juce::Label& label,
-    const juce::String& text)
-{
-    slider.setSliderStyle(
-        juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle(
-        juce::Slider::TextBoxBelow, false, 65, 16);
-    slider.setColour(
-        juce::Slider::rotarySliderFillColourId,
-        juce::Colour(0xFFE8A838));
-    slider.setColour(
-        juce::Slider::rotarySliderOutlineColourId,
-        juce::Colour(0xFF2A2A2A));
-    slider.setColour(
-        juce::Slider::textBoxTextColourId,
-        juce::Colour(0xFFE8C878));
-    slider.setColour(
-        juce::Slider::textBoxBackgroundColourId,
-        juce::Colour(0xFF0A0A0A));
-    slider.setColour(
-        juce::Slider::textBoxOutlineColourId,
-        juce::Colour(0xFF0A0A0A));
-    addAndMakeVisible(slider);
-
-    label.setText(text,
-        juce::dontSendNotification);
-    label.setColour(
-        juce::Label::textColourId,
-        juce::Colour(0xFFE8C878));
-    label.setJustificationType(
-        juce::Justification::centred);
-    label.setFont(juce::Font(
-        juce::FontOptions(9.0f)));
-    addAndMakeVisible(label);
-}
-
 void ModulatedStripEditor::setupCombo(
-    juce::ComboBox& box,
+    SteppedCombo& box,
     const juce::StringArray& items)
 {
     box.addItemList(items, 1);
-    box.setColour(
-        juce::ComboBox::backgroundColourId,
-        juce::Colour(0xFF1A1A1A));
-    box.setColour(
-        juce::ComboBox::textColourId,
-        juce::Colour(0xFFE8A838));
-    box.setColour(
-        juce::ComboBox::outlineColourId,
-        juce::Colour(0xFF3A3A3A));
-    box.setColour(
-        juce::ComboBox::arrowColourId,
-        juce::Colour(0xFFE8A838));
     addAndMakeVisible(box);
 }
 
+void ModulatedStripEditor::setupMeterLabel(
+    juce::Label& label,
+    const juce::String& text)
+{
+    label.setText(text, juce::dontSendNotification);
+    label.setColour(juce::Label::textColourId,
+        juce::Colour(0xFF888888));
+    label.setFont(juce::Font(juce::FontOptions(9.0f)));
+    label.setJustificationType(
+        juce::Justification::centred);
+    addAndMakeVisible(label);
+}
+
 //==============================================================================
-// PAINT - Background and section panels
+// PAINT
 //==============================================================================
 void ModulatedStripEditor::paint(juce::Graphics& g)
 {
-    // Matte black background
     g.fillAll(juce::Colour(0xFF0A0A0A));
 
     // Title
@@ -309,8 +550,8 @@ void ModulatedStripEditor::paint(juce::Graphics& g)
         juce::Justification::centred);
 
     g.setColour(juce::Colour(0xFF2A2A2A));
-    g.drawHorizontalLine(42,
-        15.0f, getWidth() - 15.0f);
+    g.drawHorizontalLine(42, 15.0f,
+        getWidth() - 15.0f);
 
     auto sf = juce::Font(
         juce::FontOptions(10.0f).withStyle("Bold"));
@@ -332,142 +573,117 @@ void ModulatedStripEditor::paint(juce::Graphics& g)
             juce::Justification::centred);
     };
 
-    drawPanel(  8,  48,  95, 540, "INPUT");
-    drawPanel(108,  48, 200, 540, "SATURATION");
-    drawPanel(313,  48, 310, 540, "COMPRESSOR");
-    drawPanel(628,  48, 400, 540, "EQUALIZER");
-    drawPanel(1033, 48,  60, 540, "OUT");
-
-    // Meter labels area
-    g.setColour(juce::Colour(0xFF111111));
-    g.fillRoundedRectangle(8, 595, 1085, 5, 2.0f);
+    drawPanel(  8,  48,  90, 540, "INPUT");
+    drawPanel(103,  48, 195, 540, "SATURATION");
+    drawPanel(303,  48, 310, 540, "COMPRESSOR");
+    drawPanel(618,  48, 415, 540, "EQUALIZER");
+    drawPanel(1038, 48,  55, 540, "OUT");
 }
 
 //==============================================================================
-// RESIZED - Position all controls
+// RESIZED - Position everything
 //==============================================================================
 void ModulatedStripEditor::resized()
 {
-    int k  = 72;  // knob size
-    int lh = 14;  // label height
+    int k  = 72;   // knob component height
+    int lh = 14;   // label height inside ModelKnob
 
     //──────────────────────────────────────────────
-    // INPUT SECTION
+    // INPUT
     //──────────────────────────────────────────────
-    int ix = 18;
-    int iy = 72;
-
-    inputGainLabel .setBounds(ix, iy,      k, lh);
-    inputGainSlider.setBounds(ix, iy + lh, k, k);
-
-    inputMeterLabel.setBounds(ix, iy + lh + k + 8,
-        k, lh);
-    inputMeter     .setBounds(ix + 8,
-        iy + lh + k + 8 + lh, k - 16, 300);
+    inputGainKnob .setBounds(13, 68,  k+lh, k+lh);
+    inputMeterLabel.setBounds(13, 68 + k+lh + 5, k+lh, lh);
+    inputMeter     .setBounds(20, 68 + k+lh + 5 + lh,
+        k - 10, 280);
 
     //──────────────────────────────────────────────
-    // SATURATION SECTION
+    // SATURATION
     //──────────────────────────────────────────────
-    int sx = 118;
-    int sy = 68;
+    satModelSelector.setBounds(108, 68, 180, 24);
+    satBypassBtn    .setBounds(293, 71,  35, 20);
 
-    satModelSelector.setBounds(sx, sy,       180, 24);
-    satBypassBtn    .setBounds(sx + 140, sy + 28, 40, 20);
-
-    sy += 55;
-    driveLabel .setBounds(sx,      sy, k, lh);
-    driveSlider.setBounds(sx,      sy + lh, k, k);
-    satMixLabel .setBounds(sx + 90, sy, k, lh);
-    satMixSlider.setBounds(sx + 90, sy + lh, k, k);
+    driveKnob .setBounds(108, 100, k+lh, k+lh);
+    satMixKnob.setBounds(198, 100, k+lh, k+lh);
 
     //──────────────────────────────────────────────
-    // COMPRESSOR SECTION
+    // COMPRESSOR
     //──────────────────────────────────────────────
-    int cx = 323;
+    int cx = 308;
     int cy = 68;
 
-    compModelSelector.setBounds(cx, cy,       190, 24);
-    compBypassBtn    .setBounds(cx + 200, cy + 4, 40, 20);
+    compModelSelector.setBounds(cx, cy,      190, 24);
+    compBypassBtn    .setBounds(cx+198, cy+4, 35, 20);
+    compModelHintLabel.setBounds(cx, cy+28, 240, 14);
 
-    cy += 52;
+    // Time constant selector (Fairchild only)
+    fairchildTCSelector.setBounds(cx, cy+48, 240, 24);
+
+    // Extra buttons - positioned in compressor section
+    allInBtn   .setBounds(cx+210, cy+48, 50, 22);
+    la2aLimitBtn.setBounds(cx+210, cy+48, 55, 22);
+    thrustBtn  .setBounds(cx+210, cy+48, 50, 22);
+    topologyBtn.setBounds(cx+210, cy+75, 50, 22);
+
+    cy += 50;
 
     // Row 1 - Threshold Ratio Knee
-    thresholdLabel .setBounds(cx,       cy, k, lh);
-    thresholdSlider.setBounds(cx,       cy + lh, k, k);
-    ratioLabel     .setBounds(cx + 95,  cy, k, lh);
-    ratioSlider    .setBounds(cx + 95,  cy + lh, k, k);
-    kneeLabel      .setBounds(cx + 190, cy, k, lh);
-    kneeSlider     .setBounds(cx + 190, cy + lh, k, k);
+    thresholdKnob.setBounds(cx,       cy, k+lh, k+lh);
+    ratioKnob    .setBounds(cx + 105, cy, k+lh, k+lh);
+    kneeKnob     .setBounds(cx + 210, cy, k+lh, k+lh);
 
     cy += k + lh + 18;
 
     // Row 2 - Attack Release
-    attackLabel  .setBounds(cx,      cy, k, lh);
-    attackSlider .setBounds(cx,      cy + lh, k, k);
-    releaseLabel .setBounds(cx + 95, cy, k, lh);
-    releaseSlider.setBounds(cx + 95, cy + lh, k, k);
+    attackKnob .setBounds(cx,       cy, k+lh, k+lh);
+    releaseKnob.setBounds(cx + 105, cy, k+lh, k+lh);
 
     cy += k + lh + 18;
 
     // Row 3 - Makeup Mix
-    makeupLabel  .setBounds(cx,      cy, k, lh);
-    makeupSlider .setBounds(cx,      cy + lh, k, k);
-    compMixLabel .setBounds(cx + 95, cy, k, lh);
-    compMixSlider.setBounds(cx + 95, cy + lh, k, k);
+    makeupKnob .setBounds(cx,       cy, k+lh, k+lh);
+    compMixKnob.setBounds(cx + 105, cy, k+lh, k+lh);
 
     // GR meter
-    grMeterLabel.setBounds(cx + 200, cy, k, lh);
-    grMeter     .setBounds(cx + 218, cy + lh, 18, k + 60);
+    grMeterLabel.setBounds(cx + 230, cy, 50, lh);
+    grMeter     .setBounds(cx + 242, cy + lh, 20, k + 40);
 
     //──────────────────────────────────────────────
-    // EQ SECTION
+    // EQ
     //──────────────────────────────────────────────
-    int ex = 638;
+    int ex = 623;
     int ey = 68;
 
-    eqModelSelector.setBounds(ex,       ey,       190, 24);
-    eqBypassBtn    .setBounds(ex + 200, ey + 4,   40, 20);
-    eqPreCompBtn   .setBounds(ex + 248, ey + 4,   55, 20);
+    eqModelSelector.setBounds(ex, ey,       195, 24);
+    eqBypassBtn    .setBounds(ex+200, ey+4,  35, 20);
+    eqPreCompBtn   .setBounds(ex+240, ey+4,  55, 20);
+    eqModelHintLabel.setBounds(ex, ey+28,   300, 14);
 
-    ey += 52;
+    ey += 50;
 
     // Low band
-    eqLowGainLabel .setBounds(ex,       ey, k, lh);
-    eqLowGainSlider.setBounds(ex,       ey + lh, k, k);
-    eqLowFreqLabel .setBounds(ex + 95,  ey, k, lh);
-    eqLowFreqSlider.setBounds(ex + 95,  ey + lh, k, k);
+    eqLowGainKnob.setBounds(ex,       ey, k+lh, k+lh);
+    eqLowFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
 
     ey += k + lh + 18;
 
     // Mid band
-    eqMidGainLabel .setBounds(ex,       ey, k, lh);
-    eqMidGainSlider.setBounds(ex,       ey + lh, k, k);
-    eqMidFreqLabel .setBounds(ex + 95,  ey, k, lh);
-    eqMidFreqSlider.setBounds(ex + 95,  ey + lh, k, k);
-    eqMidQLabel    .setBounds(ex + 190, ey, k, lh);
-    eqMidQSlider   .setBounds(ex + 190, ey + lh, k, k);
+    eqMidGainKnob.setBounds(ex,       ey, k+lh, k+lh);
+    eqMidFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
+    eqMidQKnob   .setBounds(ex + 210, ey, k+lh, k+lh);
 
     ey += k + lh + 18;
 
     // High band and HPF
-    eqHighGainLabel .setBounds(ex,       ey, k, lh);
-    eqHighGainSlider.setBounds(ex,       ey + lh, k, k);
-    eqHighFreqLabel .setBounds(ex + 95,  ey, k, lh);
-    eqHighFreqSlider.setBounds(ex + 95,  ey + lh, k, k);
-    eqHPFLabel      .setBounds(ex + 285, ey, k, lh);
-    eqHPFSlider     .setBounds(ex + 285, ey + lh, k, k);
+    eqHighGainKnob.setBounds(ex,       ey, k+lh, k+lh);
+    eqHighFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
+    eqHPFKnob     .setBounds(ex + 300, ey, k+lh, k+lh);
 
     //──────────────────────────────────────────────
-    // OUTPUT SECTION
+    // OUTPUT
     //──────────────────────────────────────────────
-    int ox = 1040;
-    int oy = 72;
-
-    outputGainLabel .setBounds(ox, oy,      k, lh);
-    outputGainSlider.setBounds(ox, oy + lh, k, k);
-
-    outputMeterLabel.setBounds(ox,
-        oy + lh + k + 8, k, lh);
-    outputMeter     .setBounds(ox + 8,
-        oy + lh + k + 8 + lh, k - 16, 300);
+    outputGainKnob .setBounds(1040, 68, k+lh, k+lh);
+    outputMeterLabel.setBounds(1040,
+        68 + k+lh + 5, k+lh, lh);
+    outputMeter    .setBounds(1047,
+        68 + k+lh + 5 + lh, k - 10, 280);
 }
