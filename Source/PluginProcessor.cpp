@@ -39,23 +39,23 @@ void ModulatedStripProcessor::processBlock(
 {
     juce::ScopedNoDenormals noDenormals;
 
-    auto inputGain = apvts.getRawParameterValue("inputGain");
-    float gainDb   = inputGain->load();
+    // Get all parameter values
+    float gainDb  = apvts.getRawParameterValue(
+                        "inputGain")->load();
+    float drive   = apvts.getRawParameterValue(
+                        "drive")->load() / 100.0f;
+    float satMix  = apvts.getRawParameterValue(
+                        "satMix")->load() / 100.0f;
+    int   model   = static_cast<int>(
+                        apvts.getRawParameterValue(
+                        "satModel")->load());
+
+    // Apply input gain first
     float gain = juce::Decibels::decibelsToGain(gainDb);
+    buffer.applyGain(gain);
 
-    for (int channel = 0; 
-         channel < buffer.getNumChannels(); 
-         channel++)
-    {
-        float* channelData = buffer.getWritePointer(channel);
-
-        for (int sample = 0; 
-             sample < buffer.getNumSamples(); 
-             sample++)
-        {
-            channelData[sample] *= gain;
-        }
-    }
+    // Apply saturation
+    saturation.process(buffer, drive, satMix, model);
 }
 
 // Save plugin state
@@ -89,6 +89,7 @@ ModulatedStripProcessor::createParameters()
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> 
         params;
 
+    // INPUT GAIN
     params.push_back(
         std::make_unique<juce::AudioParameterFloat>(
             "inputGain",
@@ -99,10 +100,53 @@ ModulatedStripProcessor::createParameters()
         )
     );
 
+    // SATURATION DRIVE
+    // 0 = no saturation, 100 = maximum saturation
+    params.push_back(
+        std::make_unique<juce::AudioParameterFloat>(
+            "drive",
+            "Drive",
+            0.0f,
+            100.0f,
+            0.0f
+        )
+    );
+
+    // SATURATION MIX (parallel blend)
+    // 0 = dry only, 100 = wet only
+    params.push_back(
+        std::make_unique<juce::AudioParameterFloat>(
+            "satMix",
+            "Sat Mix",
+            0.0f,
+            100.0f,
+            100.0f
+        )
+    );
+
+    // SATURATION MODEL SELECTOR
+    params.push_back(
+        std::make_unique<juce::AudioParameterChoice>(
+            "satModel",
+            "Sat Model",
+            juce::StringArray{
+                "NEVE",
+                "SSL",
+                "API",
+                "TUBE",
+                "TAPE",
+                "FET",
+                "IRON"
+            },
+            0  // default = NEVE
+        )
+    );
+
     return { params.begin(), params.end() };
 }
 
-// This creates the plugin instance
+// This function creates the plugin instance
+// The VST system calls this when loading the plugin
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new ModulatedStripProcessor();

@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "SaturationProcessor.h"
 
 class ModulatedStripProcessor : public juce::AudioProcessor
 {
@@ -48,6 +49,9 @@ private:
     // Creates all our parameters (knobs, buttons)
     juce::AudioProcessorValueTreeState::ParameterLayout
         createParameters();
+
+	// Our saturation engine
+    SaturationProcessor saturation;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)
