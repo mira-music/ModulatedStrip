@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include "SaturationProcessor.h"
 #include "CompressorProcessor.h"
+#include "EQProcessor.h"
 
 class ModulatedStripProcessor : public juce::AudioProcessor
 {
@@ -38,12 +39,17 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    // For meters in the GUI
+    float getGainReduction() const 
+        { return compressor.getGainReduction(); }
+
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout
         createParameters();
 
     SaturationProcessor saturation;
     CompressorProcessor compressor;
+    EQProcessor equalizer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)
