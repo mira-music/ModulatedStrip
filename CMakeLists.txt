@@ -30,6 +30,7 @@ target_sources(ModulatedStrip PRIVATE
     Source/PluginProcessor.h
     Source/PluginEditor.h
     Source/AnalogMath.h
+    Source/CustomLookAndFeel.h
     Source/SaturationProcessor.h
     Source/CompressorProcessor.h
     Source/EQProcessor.h

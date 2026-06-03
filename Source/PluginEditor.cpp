@@ -6,6 +6,9 @@ ModulatedStripEditor::ModulatedStripEditor(
 {
     setSize(1100, 600);
 
+    // Apply custom look and feel to entire plugin
+    setLookAndFeel(&analogLAF);
+
     auto& apvts = processor.apvts;
 
     //──────────────────────────────────────────────
@@ -22,9 +25,10 @@ ModulatedStripEditor::ModulatedStripEditor(
     addAndMakeVisible(driveKnob);
     addAndMakeVisible(satMixKnob);
 
-    setupCombo(satModelSelector, {
+    satModelSelector.addItemList({
         "NEVE", "SSL", "API", "TUBE",
-        "TAPE", "FET", "IRON"});
+        "TAPE", "FET", "IRON"}, 1);
+    addAndMakeVisible(satModelSelector);
     addAndMakeVisible(satBypassBtn);
 
     //──────────────────────────────────────────────
@@ -46,40 +50,43 @@ ModulatedStripEditor::ModulatedStripEditor(
     addAndMakeVisible(compMixKnob);
     addAndMakeVisible(kneeKnob);
 
-    setupCombo(compModelSelector, {
+    compModelSelector.addItemList({
         "SSL Bus", "Fairchild 670",
-        "LA-2A", "1176", "API 2500"});
+        "LA-2A", "1176", "API 2500"}, 1);
+    addAndMakeVisible(compModelSelector);
     addAndMakeVisible(compBypassBtn);
 
-    // Model specific compressor controls
-    setupCombo(fairchildTCSelector, {
+    // Model specific controls
+    fairchildTCSelector.addItemList({
         "TC 1  (0.2ms / 0.3s)",
         "TC 2  (0.2ms / 0.8s)",
         "TC 3  (0.4ms / 2.0s)",
         "TC 4  (0.4ms / Auto)",
         "TC 5  (0.4ms / 5.0s)",
-        "TC 6  (0.4ms / Auto fast)"});
+        "TC 6  (0.4ms / Auto fast)"}, 1);
     fairchildTCSelector.setVisible(false);
     addAndMakeVisible(fairchildTCSelector);
 
-    allInBtn   .setVisible(false);
-    thrustBtn  .setVisible(false);
-    topologyBtn.setVisible(false);
+    allInBtn    .setVisible(false);
+    thrustBtn   .setVisible(false);
+    topologyBtn .setVisible(false);
     la2aLimitBtn.setVisible(false);
-
     addAndMakeVisible(allInBtn);
     addAndMakeVisible(thrustBtn);
     addAndMakeVisible(topologyBtn);
     addAndMakeVisible(la2aLimitBtn);
 
     compModelHintLabel.setFont(juce::Font(
-        juce::FontOptions(9.0f)));
+        juce::FontOptions(8.0f)));
     compModelHintLabel.setColour(
         juce::Label::textColourId,
         juce::Colour(0xFF888888));
     compModelHintLabel.setJustificationType(
         juce::Justification::centred);
     addAndMakeVisible(compModelHintLabel);
+
+    // Analog needle GR meter
+    addAndMakeVisible(grNeedleMeter);
 
     //──────────────────────────────────────────────
     // EQ
@@ -102,14 +109,15 @@ ModulatedStripEditor::ModulatedStripEditor(
     addAndMakeVisible(eqHighFreqKnob);
     addAndMakeVisible(eqHPFKnob);
 
-    setupCombo(eqModelSelector, {
+    eqModelSelector.addItemList({
         "Neve 1073", "Neve 1084", "SSL 4000E",
-        "Pultec EQP-1A", "API 550A"});
+        "Pultec EQP-1A", "API 550A"}, 1);
+    addAndMakeVisible(eqModelSelector);
     addAndMakeVisible(eqBypassBtn);
     addAndMakeVisible(eqPreCompBtn);
 
     eqModelHintLabel.setFont(juce::Font(
-        juce::FontOptions(9.0f)));
+        juce::FontOptions(8.0f)));
     eqModelHintLabel.setColour(
         juce::Label::textColourId,
         juce::Colour(0xFF888888));
@@ -126,22 +134,47 @@ ModulatedStripEditor::ModulatedStripEditor(
     //──────────────────────────────────────────────
     // METERS
     //──────────────────────────────────────────────
-    grMeter.setIsGainReduction(true);
     addAndMakeVisible(inputMeter);
     addAndMakeVisible(outputMeter);
-    addAndMakeVisible(grMeter);
 
-    setupMeterLabel(inputMeterLabel,  "IN");
-    setupMeterLabel(outputMeterLabel, "OUT");
-    setupMeterLabel(grMeterLabel,     "GR");
+    auto setupLabel = [this](juce::Label& label,
+                             const juce::String& text)
+    {
+        label.setText(text, juce::dontSendNotification);
+        label.setColour(juce::Label::textColourId,
+            juce::Colour(0xFF888888));
+        label.setFont(juce::Font(
+            juce::FontOptions(8.0f)));
+        label.setJustificationType(
+            juce::Justification::centred);
+        addAndMakeVisible(label);
+    };
+
+    setupLabel(inputMeterLabel,  "IN");
+    setupLabel(outputMeterLabel, "OUT");
+
+    //──────────────────────────────────────────────
+    // SCREWS
+    //──────────────────────────────────────────────
+    screwTL.setRotation(0.3f);
+    screwTR.setRotation(1.1f);
+    screwBL.setRotation(0.7f);
+    screwBR.setRotation(2.1f);
+    addAndMakeVisible(screwTL);
+    addAndMakeVisible(screwTR);
+    addAndMakeVisible(screwBL);
+    addAndMakeVisible(screwBR);
 
     //──────────────────────────────────────────────
     // PARAMETER ATTACHMENTS
     //──────────────────────────────────────────────
+
+    // Input
     inputGainAtt = std::make_unique<SliderAtt>(
         apvts, "inputGain",
         inputGainKnob.getSlider());
 
+    // Saturation
     driveAtt = std::make_unique<SliderAtt>(
         apvts, "drive", driveKnob.getSlider());
     satMixAtt = std::make_unique<SliderAtt>(
@@ -151,6 +184,7 @@ ModulatedStripEditor::ModulatedStripEditor(
     satBypassAtt = std::make_unique<ButtonAtt>(
         apvts, "satBypass", satBypassBtn);
 
+    // Compressor
     thresholdAtt = std::make_unique<SliderAtt>(
         apvts, "compThreshold",
         thresholdKnob.getSlider());
@@ -176,19 +210,18 @@ ModulatedStripEditor::ModulatedStripEditor(
         apvts, "compModel", compModelSelector);
     compBypassAtt = std::make_unique<ButtonAtt>(
         apvts, "compBypass", compBypassBtn);
-
-	fairchildTCAtt = std::make_unique<ComboAtt>(
-		apvts, "fairchildTC", fairchildTCSelector);
-		
-	allInAtt = std::make_unique<ButtonAtt>(
+    fairchildTCAtt = std::make_unique<ComboAtt>(
+        apvts, "fairchildTC", fairchildTCSelector);
+    allInAtt = std::make_unique<ButtonAtt>(
         apvts, "allButtonsIn", allInBtn);
-	thrustAtt = std::make_unique<ButtonAtt>(
+    thrustAtt = std::make_unique<ButtonAtt>(
         apvts, "thrustOn", thrustBtn);
     topologyAtt = std::make_unique<ButtonAtt>(
         apvts, "feedbackMode", topologyBtn);
     la2aLimitAtt = std::make_unique<ButtonAtt>(
         apvts, "la2aLimit", la2aLimitBtn);
 
+    // EQ
     eqLowGainAtt = std::make_unique<SliderAtt>(
         apvts, "eqLowGain",
         eqLowGainKnob.getSlider());
@@ -220,38 +253,45 @@ ModulatedStripEditor::ModulatedStripEditor(
     eqPreCompAtt = std::make_unique<ButtonAtt>(
         apvts, "eqPreComp", eqPreCompBtn);
 
+    // Output
     outputGainAtt = std::make_unique<SliderAtt>(
         apvts, "outputGain",
         outputGainKnob.getSlider());
 
-    // Listen to model selectors for UI updates
+    // Listen to model selectors
     compModelSelector.addListener(this);
     eqModelSelector.addListener(this);
 
     // Set initial UI state
-    updateCompressorUI(compModelSelector.getSelectedId() - 1);
-    updateEQUI(eqModelSelector.getSelectedId() - 1);
+    updateCompressorUI(
+        compModelSelector.getSelectedId() - 1);
+    updateEQUI(
+        eqModelSelector.getSelectedId() - 1);
 
+    // Start meter timer at 30Hz
     startTimerHz(30);
 }
 
 ModulatedStripEditor::~ModulatedStripEditor()
 {
+    setLookAndFeel(nullptr);
     compModelSelector.removeListener(this);
     eqModelSelector.removeListener(this);
     stopTimer();
 }
 
 //==============================================================================
-// COMBO BOX LISTENER
-// Called when user changes model selector
+// COMBO LISTENER
 //==============================================================================
 void ModulatedStripEditor::comboBoxChanged(
     juce::ComboBox* box)
 {
     if (box == &compModelSelector)
-        updateCompressorUI(
-            compModelSelector.getSelectedId() - 1);
+    {
+        int idx = compModelSelector.getSelectedId() - 1;
+        updateCompressorUI(idx);
+        grNeedleMeter.setModel(idx);
+    }
 
     if (box == &eqModelSelector)
         updateEQUI(
@@ -260,19 +300,18 @@ void ModulatedStripEditor::comboBoxChanged(
 
 //==============================================================================
 // COMPRESSOR UI STATE MACHINE
-// Each model reconfigures the controls
 //==============================================================================
 void ModulatedStripEditor::updateCompressorUI(
     int modelIndex)
 {
-    // Reset all model-specific controls first
+    // Hide all model-specific controls first
     fairchildTCSelector.setVisible(false);
-    allInBtn           .setVisible(false);
-    thrustBtn          .setVisible(false);
-    topologyBtn        .setVisible(false);
-    la2aLimitBtn       .setVisible(false);
+    allInBtn    .setVisible(false);
+    thrustBtn   .setVisible(false);
+    topologyBtn .setVisible(false);
+    la2aLimitBtn.setVisible(false);
 
-    // Reset all knobs to active state
+    // Reset all knobs to active
     thresholdKnob.setModelState(true);
     ratioKnob    .setModelState(true);
     attackKnob   .setModelState(true);
@@ -292,12 +331,9 @@ void ModulatedStripEditor::updateCompressorUI(
     {
         case 0: // SSL Bus
         {
-            // Authentic SSL character info
             compModelHintLabel.setText(
-                "VCA · Glue · Punchy",
+                "VCA \xc2\xb7 Glue \xc2\xb7 Punchy",
                 juce::dontSendNotification);
-
-            // Knee defaults hard on SSL
             kneeKnob.setName("KNEE");
             break;
         }
@@ -305,23 +341,18 @@ void ModulatedStripEditor::updateCompressorUI(
         case 1: // Fairchild 670
         {
             compModelHintLabel.setText(
-                "Vari-Mu · Tube · Smooth",
+                "Vari-Mu \xc2\xb7 Tube \xc2\xb7 Smooth",
                 juce::dontSendNotification);
 
-            // Attack and release replaced by
-            // 6-position time constant selector
             attackKnob .setModelState(false,
                 "TIME CONST");
             releaseKnob.setModelState(false,
-                "→ TC SELECT");
+                "TC SELECT");
 
-            // Show time constant selector
             fairchildTCSelector.setVisible(true);
 
-            // Ratio is fixed at ~3:1 for vari-mu
-            ratioKnob.setModelState(false, "3:1 FIXED");
-
-            // Very soft knee - tube physics
+            ratioKnob.setModelState(false,
+                "3:1 FIXED");
             kneeKnob.setName("KNEE (soft)");
             break;
         }
@@ -329,75 +360,60 @@ void ModulatedStripEditor::updateCompressorUI(
         case 2: // LA-2A
         {
             compModelHintLabel.setText(
-                "Opto · T4B · Musical",
+                "Opto \xc2\xb7 T4B \xc2\xb7 Musical",
                 juce::dontSendNotification);
 
-            // Attack is fixed by opto physics
-            attackKnob.setModelState(false, "OPTICAL");
-
-            // Ratio replaced by compress/limit toggle
-            ratioKnob.setModelState(false,
+            attackKnob .setModelState(false, "OPTICAL");
+            releaseKnob.setModelState(false, "OPTICAL");
+            ratioKnob  .setModelState(false,
                 "COMP/LIMIT");
+            kneeKnob   .setModelState(false, "OPTICAL");
+
             la2aLimitBtn.setVisible(true);
 
-            // Threshold renamed Peak Reduction
             thresholdKnob.setName("PEAK RED");
-
-            // Makeup renamed Gain
-            makeupKnob.setName("GAIN");
-
-            // Knee handled by opto physics
-            kneeKnob.setModelState(false, "OPTICAL");
+            makeupKnob   .setName("GAIN");
             break;
         }
 
         case 3: // 1176 FET
         {
             compModelHintLabel.setText(
-                "FET · Fast · Aggressive",
+                "FET \xc2\xb7 Fast \xc2\xb7 Aggressive",
                 juce::dontSendNotification);
 
-            // Threshold renamed Input
             thresholdKnob.setName("INPUT");
+            attackKnob   .setName("ATTACK \xe2\x86\x90");
+            kneeKnob     .setName("KNEE (FET)");
 
-            // Attack note - runs backwards
-            attackKnob.setName("ATTACK←");
-
-            // All-buttons-in mode
             allInBtn.setVisible(true);
-
-            // Tight FET knee
-            kneeKnob.setName("KNEE (FET)");
             break;
         }
 
         case 4: // API 2500
         {
             compModelHintLabel.setText(
-                "VCA · Thrust · Dense",
+                "VCA \xc2\xb7 Thrust \xc2\xb7 Dense",
                 juce::dontSendNotification);
 
-            // API specific controls
+            kneeKnob.setName("NEW/OLD");
+
             thrustBtn  .setVisible(true);
             topologyBtn.setVisible(true);
-
-            // New/Old knee modes
-            kneeKnob.setName("NEW/OLD");
             break;
         }
     }
 
-    resized();
     repaint();
 }
 
 //==============================================================================
 // EQ UI STATE MACHINE
-// Each model reconfigures the EQ controls
 //==============================================================================
-void ModulatedStripEditor::updateEQUI(int modelIndex)
+void ModulatedStripEditor::updateEQUI(
+    int modelIndex)
 {
-    // Reset all EQ knobs to active
+    // Reset all knobs
     eqLowGainKnob .setModelState(true);
     eqLowFreqKnob .setModelState(true);
     eqMidGainKnob .setModelState(true);
@@ -423,17 +439,11 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
         case 0: // Neve 1073
         {
             eqModelHintLabel.setText(
-                "Transformer · Inductor · Bloom",
+                "Transformer \xc2\xb7 Inductor \xc2\xb7 Bloom",
                 juce::dontSendNotification);
 
-            // Proportional Q - user cannot control
-            eqMidQKnob.setModelState(false,
-                "PROP-Q");
-
-            // Low shelf is boost only
+            eqMidQKnob.setModelState(false, "PROP-Q");
             eqLowGainKnob.setName("LOW BOOST");
-
-            // HPF is 6dB/oct - label it
             eqHPFKnob.setName("HPF 6dB");
             break;
         }
@@ -441,16 +451,11 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
         case 1: // Neve 1084
         {
             eqModelHintLabel.setText(
-                "Transformer · Class A · Musical",
+                "Transformer \xc2\xb7 Class A \xc2\xb7 Musical",
                 juce::dontSendNotification);
 
-            // Proportional Q but user can add to it
-            eqMidQKnob.setModelState(false,
-                "PROP-Q");
-
-            // 1084 allows low shelf cut
-            eqLowGainKnob.setName("LOW ±");
-
+            eqMidQKnob.setModelState(false, "PROP-Q");
+            eqLowGainKnob.setName("LOW \xc2\xb1");
             eqHPFKnob.setName("HPF 6dB");
             break;
         }
@@ -458,14 +463,11 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
         case 2: // SSL 4000E
         {
             eqModelHintLabel.setText(
-                "SVF · Clean · Transparent",
+                "SVF \xc2\xb7 Clean \xc2\xb7 Transparent",
                 juce::dontSendNotification);
 
-            // Constant Q - Q knob does nothing on SSL
             eqMidQKnob.setModelState(false,
                 "CONST Q");
-
-            // HPF is 18dB/oct on SSL
             eqHPFKnob.setName("HPF 18dB");
             break;
         }
@@ -473,16 +475,11 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
         case 3: // Pultec EQP-1A
         {
             eqModelHintLabel.setText(
-                "Passive LC · Tube · Phase Bloom",
+                "Passive LC \xc2\xb7 Tube \xc2\xb7 Phase Bloom",
                 juce::dontSendNotification);
 
-            // Pultec has no HPF
             eqHPFKnob.setModelState(false, "NO HPF");
-
-            // Low is boost only on Pultec
             eqLowGainKnob.setName("LO BOOST");
-
-            // Q is fixed by LC network
             eqMidQKnob.setModelState(false,
                 "LC FIXED");
             break;
@@ -491,216 +488,263 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
         case 4: // API 550A
         {
             eqModelHintLabel.setText(
-                "Discrete · Aggressive · Focused",
+                "Discrete \xc2\xb7 Aggressive \xc2\xb7 Focused",
                 juce::dontSendNotification);
 
-            // Proportional Q - quadratic growth
-            eqMidQKnob.setModelState(false,
-                "PROP-Q");
-
-            // HPF is 18dB/oct on API
+            eqMidQKnob.setModelState(false, "PROP-Q");
             eqHPFKnob.setName("HPF 18dB");
             break;
         }
     }
 
-    resized();
     repaint();
 }
 
 //==============================================================================
 // TIMER - Meters at 30Hz
 //==============================================================================
-
 void ModulatedStripEditor::timerCallback()
 {
     inputMeter .setLevel(processor.getInputPeak());
     outputMeter.setLevel(processor.getOutputPeak());
 
-    // GR meter correct scaling
-    // 0dB GR  = grNorm 0.0 = bar empty
-    // 20dB GR = grNorm 1.0 = bar full
-    float grDb   = std::abs(processor.getGainReduction());
-    float grNorm = juce::jlimit(0.0f, 1.0f, grDb / 20.0f);
-    float grLevel = juce::Decibels::decibelsToGain(
-        -60.0f * (1.0f - grNorm));
-    grMeter.setLevel(grLevel);
+    // GR needle meter
+    float grDb = std::abs(processor.getGainReduction());
+    grNeedleMeter.setGainReduction(grDb);
 }
 
 //==============================================================================
-// SETUP HELPERS
-//==============================================================================
-void ModulatedStripEditor::setupCombo(
-    SteppedCombo& box,
-    const juce::StringArray& items)
-{
-    box.addItemList(items, 1);
-    addAndMakeVisible(box);
-}
-
-void ModulatedStripEditor::setupMeterLabel(
-    juce::Label& label,
-    const juce::String& text)
-{
-    label.setText(text, juce::dontSendNotification);
-    label.setColour(juce::Label::textColourId,
-        juce::Colour(0xFF888888));
-    label.setFont(juce::Font(juce::FontOptions(9.0f)));
-    label.setJustificationType(
-        juce::Justification::centred);
-    addAndMakeVisible(label);
-}
-
-//==============================================================================
-// PAINT
+// PAINT - Backgrounds and panels
 //==============================================================================
 void ModulatedStripEditor::paint(juce::Graphics& g)
 {
+    // Main background
     g.fillAll(juce::Colour(0xFF0A0A0A));
 
-    // Title
-    g.setColour(juce::Colour(0xFFE8A838));
+    // Title bar background
+    g.setColour(juce::Colour(0xFF111111));
+    g.fillRect(0, 0, getWidth(), 42);
+
+    // Title text - engraved look
+    // Shadow
+    g.setColour(juce::Colour(0xFF000000));
     g.setFont(juce::Font(
-        juce::FontOptions(24.0f).withStyle("Bold")));
+        juce::FontOptions(22.0f).withStyle("Bold")));
+    g.drawText("MODULATED STRIP",
+        1, 1, getWidth(), 42,
+        juce::Justification::centred);
+    // Main text
+    g.setColour(juce::Colour(0xFFB89838));
     g.drawText("MODULATED STRIP",
         0, 0, getWidth(), 42,
         juce::Justification::centred);
 
+    // Title underline
     g.setColour(juce::Colour(0xFF2A2A2A));
-    g.drawHorizontalLine(42, 15.0f,
-        getWidth() - 15.0f);
+    g.drawHorizontalLine(42, 0,
+        static_cast<float>(getWidth()));
 
-    auto sf = juce::Font(
-        juce::FontOptions(10.0f).withStyle("Bold"));
+    // Section panels with brushed metal texture
+    // INPUT
+    PanelTextures::drawBrushedMetal(g,
+        juce::Rectangle<float>(8, 48, 90, 544),
+        juce::Colour(0xFF111111), 0.02f);
 
-    auto drawPanel = [&](float x, float y,
-                         float w, float h,
-                         const juce::String& title)
+    // SATURATION - tint changes with model
+    int satIdx = satModelSelector.getSelectedId() - 1;
+    juce::Colour satPanelColor;
+    switch (satIdx)
     {
-        g.setColour(juce::Colour(0xFF111111));
-        g.fillRoundedRectangle(x, y, w, h, 5.0f);
-        g.setColour(juce::Colour(0xFF2A2A2A));
-        g.drawRoundedRectangle(x, y, w, h, 5.0f, 1.0f);
-        g.setColour(juce::Colour(0xFFE8A838));
-        g.setFont(sf);
-        g.drawText(title,
-            static_cast<int>(x),
-            static_cast<int>(y) + 3,
-            static_cast<int>(w), 16,
+        case 0:  satPanelColor = juce::Colour(0xFF111A11); break;
+        case 1:  satPanelColor = juce::Colour(0xFF111111); break;
+        case 2:  satPanelColor = juce::Colour(0xFF111118); break;
+        case 3:  satPanelColor = juce::Colour(0xFF1A1511); break;
+        case 4:  satPanelColor = juce::Colour(0xFF151210); break;
+        case 5:  satPanelColor = juce::Colour(0xFF101215); break;
+        case 6:  satPanelColor = juce::Colour(0xFF121212); break;
+        default: satPanelColor = juce::Colour(0xFF111111); break;
+    }
+    PanelTextures::drawBrushedMetal(g,
+        juce::Rectangle<float>(103, 48, 195, 544),
+        satPanelColor, 0.025f);
+
+    // COMPRESSOR - model specific panel color
+    int compIdx = compModelSelector.getSelectedId() - 1;
+    juce::Colour compPanelColor;
+    switch (compIdx)
+    {
+        case 0:  compPanelColor = juce::Colour(0xFF1A1A1A); break;
+        case 1:  compPanelColor = juce::Colour(0xFF1A1208); break;
+        case 2:  compPanelColor = juce::Colour(0xFF1A1A18); break;
+        case 3:  compPanelColor = juce::Colour(0xFF0F0F0F); break;
+        case 4:  compPanelColor = juce::Colour(0xFF0F1520); break;
+        default: compPanelColor = juce::Colour(0xFF111111); break;
+    }
+    PanelTextures::drawBrushedMetal(g,
+        juce::Rectangle<float>(303, 48, 340, 544),
+        compPanelColor, 0.02f);
+
+    // EQ - model specific panel color
+    int eqIdx = eqModelSelector.getSelectedId() - 1;
+    juce::Colour eqPanelColor;
+    switch (eqIdx)
+    {
+        case 0:  eqPanelColor = juce::Colour(0xFF0F1A10); break;
+        case 1:  eqPanelColor = juce::Colour(0xFF0F1A10); break;
+        case 2:  eqPanelColor = juce::Colour(0xFF1A1A1A); break;
+        case 3:  eqPanelColor = juce::Colour(0xFF1A1810); break;
+        case 4:  eqPanelColor = juce::Colour(0xFF0F0F1A); break;
+        default: eqPanelColor = juce::Colour(0xFF111111); break;
+    }
+    PanelTextures::drawBrushedMetal(g,
+        juce::Rectangle<float>(648, 48, 390, 544),
+        eqPanelColor, 0.025f);
+
+    // OUTPUT
+    PanelTextures::drawBrushedMetal(g,
+        juce::Rectangle<float>(1043, 48, 50, 544),
+        juce::Colour(0xFF111111), 0.02f);
+
+    // Section labels
+    auto sf = juce::Font(
+        juce::FontOptions(9.0f).withStyle("Bold"));
+    g.setFont(sf);
+
+    // Label shadow + text for each section
+    auto drawSectionLabel = [&](float x, float w,
+                                const juce::String& text)
+    {
+        g.setColour(juce::Colour(0xFF000000));
+        g.drawText(text,
+            static_cast<int>(x) + 1, 53,
+            static_cast<int>(w), 14,
+            juce::Justification::centred);
+        g.setColour(juce::Colour(0xFFB89838));
+        g.drawText(text,
+            static_cast<int>(x), 52,
+            static_cast<int>(w), 14,
             juce::Justification::centred);
     };
 
-    drawPanel(  8,  48,  90, 540, "INPUT");
-    drawPanel(103,  48, 195, 540, "SATURATION");
-    drawPanel(303,  48, 310, 540, "COMPRESSOR");
-    drawPanel(618,  48, 415, 540, "EQUALIZER");
-    drawPanel(1038, 48,  55, 540, "OUT");
+    drawSectionLabel(8,    90,  "INPUT");
+    drawSectionLabel(103,  195, "SATURATION");
+    drawSectionLabel(303,  340, "COMPRESSOR");
+    drawSectionLabel(648,  390, "EQUALIZER");
+    drawSectionLabel(1043, 50,  "OUT");
+
+    // Dust overlay on all panels
+    PanelTextures::drawDust(g,
+        getLocalBounds().toFloat(), 0.01f);
 }
 
 //==============================================================================
-// RESIZED - Position everything
+// RESIZED - Position all controls
 //==============================================================================
 void ModulatedStripEditor::resized()
 {
-    int k  = 72;   // knob component height
-    int lh = 14;   // label height inside ModelKnob
+    int k  = 72;
+    int lh = 14;
+
+    // Screws
+    screwTL.setBounds(12,  8, 14, 14);
+    screwTR.setBounds(getWidth() - 26, 8, 14, 14);
+    screwBL.setBounds(12, getHeight() - 22, 14, 14);
+    screwBR.setBounds(getWidth() - 26,
+                      getHeight() - 22, 14, 14);
 
     //──────────────────────────────────────────────
     // INPUT
     //──────────────────────────────────────────────
-    inputGainKnob .setBounds(13, 68,  k+lh, k+lh);
-    inputMeterLabel.setBounds(13, 68 + k+lh + 5, k+lh, lh);
-    inputMeter     .setBounds(20, 68 + k+lh + 5 + lh,
-        k - 10, 280);
+    inputGainKnob.setBounds(13, 70, k+lh, k+lh);
+    inputMeterLabel.setBounds(13,
+        70 + k + lh + 8, k + lh, 12);
+    inputMeter.setBounds(25,
+        70 + k + lh + 22, k - 20, 320);
 
     //──────────────────────────────────────────────
     // SATURATION
     //──────────────────────────────────────────────
-    satModelSelector.setBounds(108, 68, 180, 24);
-    satBypassBtn    .setBounds(293, 71,  35, 20);
+    satModelSelector.setBounds(108, 70, 180, 24);
+    satBypassBtn    .setBounds(248, 98, 40, 20);
 
-    driveKnob .setBounds(108, 100, k+lh, k+lh);
-    satMixKnob.setBounds(198, 100, k+lh, k+lh);
+    driveKnob .setBounds(108, 125, k+lh, k+lh);
+    satMixKnob.setBounds(198, 125, k+lh, k+lh);
 
     //──────────────────────────────────────────────
     // COMPRESSOR
     //──────────────────────────────────────────────
     int cx = 308;
-    int cy = 68;
 
-    compModelSelector.setBounds(cx, cy,      190, 24);
-    compBypassBtn    .setBounds(cx+198, cy+4, 35, 20);
-    compModelHintLabel.setBounds(cx, cy+28, 240, 14);
+    compModelSelector.setBounds(cx, 70, 200, 24);
+    compBypassBtn    .setBounds(cx + 210, 73, 40, 20);
+    compModelHintLabel.setBounds(cx, 97, 250, 12);
 
-    // Time constant selector (Fairchild only)
-    fairchildTCSelector.setBounds(cx, cy+48, 240, 24);
+    // VU Needle meter
+    grNeedleMeter.setBounds(cx + 30, 112, 260, 120);
 
-    // Extra buttons - positioned in compressor section
-    allInBtn   .setBounds(cx+210, cy+48, 50, 22);
-    la2aLimitBtn.setBounds(cx+210, cy+48, 55, 22);
-    thrustBtn  .setBounds(cx+210, cy+48, 50, 22);
-    topologyBtn.setBounds(cx+210, cy+75, 50, 22);
-
-    cy += 50;
+    // Model specific controls positioned below meter
+    fairchildTCSelector.setBounds(cx, 238, 250, 24);
+    allInBtn   .setBounds(cx + 220, 238, 60, 22);
+    la2aLimitBtn.setBounds(cx + 220, 238, 60, 22);
+    thrustBtn  .setBounds(cx + 170, 238, 60, 22);
+    topologyBtn.setBounds(cx + 235, 238, 60, 22);
 
     // Row 1 - Threshold Ratio Knee
-    thresholdKnob.setBounds(cx,       cy, k+lh, k+lh);
-    ratioKnob    .setBounds(cx + 105, cy, k+lh, k+lh);
-    kneeKnob     .setBounds(cx + 210, cy, k+lh, k+lh);
-
-    cy += k + lh + 18;
+    int compKnobY = 268;
+    thresholdKnob.setBounds(cx,       compKnobY,
+        k+lh, k+lh);
+    ratioKnob    .setBounds(cx + 105, compKnobY,
+        k+lh, k+lh);
+    kneeKnob     .setBounds(cx + 210, compKnobY,
+        k+lh, k+lh);
 
     // Row 2 - Attack Release
-    attackKnob .setBounds(cx,       cy, k+lh, k+lh);
-    releaseKnob.setBounds(cx + 105, cy, k+lh, k+lh);
-
-    cy += k + lh + 18;
+    compKnobY += k + lh + 14;
+    attackKnob .setBounds(cx,       compKnobY,
+        k+lh, k+lh);
+    releaseKnob.setBounds(cx + 105, compKnobY,
+        k+lh, k+lh);
 
     // Row 3 - Makeup Mix
-    makeupKnob .setBounds(cx,       cy, k+lh, k+lh);
-    compMixKnob.setBounds(cx + 105, cy, k+lh, k+lh);
-
-    // GR meter
-    grMeterLabel.setBounds(cx + 230, cy, 50, lh);
-    grMeter     .setBounds(cx + 242, cy + lh, 20, k + 40);
+    compKnobY += k + lh + 14;
+    makeupKnob .setBounds(cx,       compKnobY,
+        k+lh, k+lh);
+    compMixKnob.setBounds(cx + 105, compKnobY,
+        k+lh, k+lh);
 
     //──────────────────────────────────────────────
     // EQ
     //──────────────────────────────────────────────
-    int ex = 623;
-    int ey = 68;
+    int ex = 653;
 
-    eqModelSelector.setBounds(ex, ey,       195, 24);
-    eqBypassBtn    .setBounds(ex+200, ey+4,  35, 20);
-    eqPreCompBtn   .setBounds(ex+240, ey+4,  55, 20);
-    eqModelHintLabel.setBounds(ex, ey+28,   300, 14);
-
-    ey += 50;
+    eqModelSelector.setBounds(ex, 70, 200, 24);
+    eqBypassBtn    .setBounds(ex + 210, 73, 40, 20);
+    eqPreCompBtn   .setBounds(ex + 260, 73, 60, 20);
+    eqModelHintLabel.setBounds(ex, 97, 300, 12);
 
     // Low band
-    eqLowGainKnob.setBounds(ex,       ey, k+lh, k+lh);
-    eqLowFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
-
-    ey += k + lh + 18;
+    int eqY = 115;
+    eqLowGainKnob.setBounds(ex,       eqY, k+lh, k+lh);
+    eqLowFreqKnob.setBounds(ex + 105, eqY, k+lh, k+lh);
 
     // Mid band
-    eqMidGainKnob.setBounds(ex,       ey, k+lh, k+lh);
-    eqMidFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
-    eqMidQKnob   .setBounds(ex + 210, ey, k+lh, k+lh);
+    eqY += k + lh + 14;
+    eqMidGainKnob.setBounds(ex,       eqY, k+lh, k+lh);
+    eqMidFreqKnob.setBounds(ex + 105, eqY, k+lh, k+lh);
+    eqMidQKnob   .setBounds(ex + 210, eqY, k+lh, k+lh);
 
-    ey += k + lh + 18;
-
-    // High band and HPF
-    eqHighGainKnob.setBounds(ex,       ey, k+lh, k+lh);
-    eqHighFreqKnob.setBounds(ex + 105, ey, k+lh, k+lh);
-    eqHPFKnob     .setBounds(ex + 300, ey, k+lh, k+lh);
+    // High band + HPF
+    eqY += k + lh + 14;
+    eqHighGainKnob.setBounds(ex,       eqY, k+lh, k+lh);
+    eqHighFreqKnob.setBounds(ex + 105, eqY, k+lh, k+lh);
+    eqHPFKnob     .setBounds(ex + 300, eqY, k+lh, k+lh);
 
     //──────────────────────────────────────────────
     // OUTPUT
     //──────────────────────────────────────────────
-    outputGainKnob .setBounds(1040, 68, k+lh, k+lh);
-    outputMeterLabel.setBounds(1040,
-        68 + k+lh + 5, k+lh, lh);
-    outputMeter    .setBounds(1047,
-        68 + k+lh + 5 + lh, k - 10, 280);
+    outputGainKnob.setBounds(1045, 70, k+lh, k+lh);
+    outputMeterLabel.setBounds(1045,
+        70 + k + lh + 8, k + lh, 12);
+    outputMeter.setBounds(1052,
+        70 + k + lh + 22, 35, 320);
 }
