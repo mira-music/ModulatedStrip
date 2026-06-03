@@ -1,10 +1,10 @@
 #pragma once
 #include <JuceHeader.h>
 #include <cmath>
+#include "AnalogMath.h"
 
 //==============================================================================
 // BIQUAD FILTER
-// Double precision state for accuracy at low frequencies
 //==============================================================================
 class BiquadFilter
 {
@@ -25,10 +25,10 @@ public:
         a2 = a2_ / a0_;
     }
 
-    // Set as unity (bypass)
     void setUnity()
     {
-        setCoefficients(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        b0 = 1.0; b1 = 0.0; b2 = 0.0;
+        a1 = 0.0; a2 = 0.0;
     }
 
     float process(float input)
@@ -44,16 +44,13 @@ public:
     }
 
 private:
-    double b0=1, b1=0, b2=0;
-    double a1=0, a2=0;
-    double x1=0, x2=0, y1=0, y2=0;
+    double b0 = 1, b1 = 0, b2 = 0;
+    double a1 = 0, a2 = 0;
+    double x1 = 0, x2 = 0, y1 = 0, y2 = 0;
 };
 
 //==============================================================================
 // SVF STATE
-// State Variable Filter for SSL mid band
-// Produces the SSL bell shape with
-// correct boost/cut asymmetry
 //==============================================================================
 struct SVFState
 {
@@ -93,17 +90,20 @@ public:
             lowResonance[ch].reset();
             lcAllpass[ch].reset();
             svfState[ch] = { 0.0f, 0.0f };
-
-            // Slow envelope follower for Neve HF softening
-            // Tracks sustained signal level ~500ms
-            neveEnv[ch] = 0.0f;
+            neveEnv[ch]  = 0.0f;
+            prevSample[ch] = 0.0f;
         }
+
+        // Neve sustain envelope coefficient
+        // ~500ms time constant for transformer magnetization
+        // Computed once here not in recalculateFilters
+        neveEnvCoeff = std::exp(
+            -1.0f / (static_cast<float>(sr) * 0.5f));
 
         paramsDirty = true;
         recalculateFilters();
     }
 
-    // All setters use dirty flag
     void setModel(int m)
     {
         Model nm = static_cast<Model>(m);
@@ -112,7 +112,6 @@ public:
             model = nm;
             paramsDirty = true;
 
-            // Reset SVF state on model switch
             for (int ch = 0; ch < 2; ch++)
                 svfState[ch] = { 0.0f, 0.0f };
         }
@@ -137,7 +136,6 @@ public:
 
     void process(juce::AudioBuffer<float>& buffer)
     {
-        // P1 FIX: recalculate at most once per block
         if (paramsDirty)
         {
             recalculateFilters();
@@ -160,12 +158,11 @@ public:
                     && model != Model::PULTEC)
                 {
                     x = hpfBand[ch].process(x);
-                    // SSL gets extra 1-pole for 18dB/oct
                     if (model == Model::SSL_4000E)
                         x = hpfBand2[ch].process(x);
                 }
 
-                // 2. Neve always-on transformer HPF at 25Hz
+                // 2. Neve transformer HPF at 25Hz
                 if (model == Model::NEVE_1073
                  || model == Model::NEVE_1084)
                 {
@@ -175,7 +172,7 @@ public:
                 // 3. Low band
                 x = lowBand[ch].process(x);
 
-                // 4. Neve inductor resonance bloom
+                // 4. Neve inductor bloom
                 if ((model == Model::NEVE_1073
                   || model == Model::NEVE_1084)
                   && lowGain > 2.0f)
@@ -183,19 +180,18 @@ public:
                     x = lowResonance[ch].process(x);
                 }
 
-                // 5. Pultec simultaneous cut band
+                // 5. Pultec simultaneous cut
                 if (model == Model::PULTEC)
                     x = pultecCutBand[ch].process(x);
 
-                // 6. Pultec LC allpass phase character
+                // 6. Pultec LC allpass phase bloom
                 if (model == Model::PULTEC
                  && lowGain > 0.0f)
                 {
                     x = lcAllpass[ch].process(x);
                 }
 
-                // 7. Mid band
-                // SSL uses SVF, all others use biquad
+                // 7. Mid band - SSL uses SVF
                 if (model == Model::SSL_4000E)
                     x = processSVF(x, ch);
                 else
@@ -205,7 +201,7 @@ public:
                 x = highBand[ch].process(x);
 
                 // 9. Model coloration
-                // ALWAYS runs - even at zero gain
+                // ALWAYS runs even at zero gain
                 // This is what makes it a color EQ
                 x = applyModelColor(x, ch);
 
@@ -237,40 +233,30 @@ private:
     BiquadFilter pultecCutBand[2];
 
     // New filters from audit
-    BiquadFilter hpfBand2[2];      // SSL 3rd HPF pole
-    BiquadFilter transformerHPF[2]; // Neve 25Hz fixed HPF
-    BiquadFilter lowResonance[2];   // Neve inductor bloom
-    BiquadFilter lcAllpass[2];      // Pultec phase bloom
+    BiquadFilter hpfBand2[2];
+    BiquadFilter transformerHPF[2];
+    BiquadFilter lowResonance[2];
+    BiquadFilter lcAllpass[2];
 
     // SSL SVF state
     SVFState svfState[2];
-    float    svfG  = 0.0f;
-    float    svfK  = 0.0f;
-    float    svfA1 = 0.0f;
-    float    svfA2 = 0.0f;
-    float    svfA3 = 0.0f;
-    float    svfGain = 0.0f; // linear gain for SVF peak
+    float    svfG    = 0.0f;
+    float    svfK    = 0.0f;
+    float    svfA1   = 0.0f;
+    float    svfA2   = 0.0f;
+    float    svfA3   = 0.0f;
+    float    svfGain = 0.0f;
 
-    // Neve slow envelope for sustained HF softening
-    float neveEnv[2] = { 0.0f, 0.0f };
-    // Coefficient for ~500ms envelope
-    // Updated in recalculateFilters()
-    float neveEnvCoeff = 0.998f;
-
-    // Pultec model state
-    float prevSample[2] = { 0.0f, 0.0f };
+    // Neve slow envelope for HF softening
+    float neveEnv[2]     = { 0.0f, 0.0f };
+    float neveEnvCoeff   = 0.998f;
+    float prevSample[2]  = { 0.0f, 0.0f };
 
     //──────────────────────────────────────────────
-    // RECALCULATE ALL FILTERS
-    // Called at most once per block via dirty flag
+    // RECALCULATE FILTERS
     //──────────────────────────────────────────────
     void recalculateFilters()
     {
-        // Update Neve sustain envelope coefficient
-        // ~500ms time constant for transformer magnetization
-        neveEnvCoeff = std::exp(
-            -1.0f / (static_cast<float>(sr) * 0.5f));
-
         float effectiveQ = getModelQ();
 
         calcLowBand();
@@ -284,7 +270,7 @@ private:
     }
 
     //──────────────────────────────────────────────
-    // MODEL Q - what makes each EQ sound different
+    // MODEL Q
     //──────────────────────────────────────────────
     float getModelQ()
     {
@@ -292,37 +278,35 @@ private:
         {
             case Model::NEVE_1073:
             {
-                // Proportional Q - correct per audit
-                // Q = 0.5 at 0dB, 2.0 at 15dB
                 float absGain = std::abs(midGain);
                 return 0.5f + (absGain / 15.0f) * 1.5f;
             }
 
             case Model::NEVE_1084:
             {
-                // Slightly higher Q than 1073
                 float absGain = std::abs(midGain);
                 return midQ + (absGain / 15.0f) * 0.7f;
             }
 
             case Model::SSL_4000E:
-                // Fixed Q - no proportional behavior
-                // SSL is wider and more open than Neve
                 return 1.0f;
 
             case Model::PULTEC:
-                // Very broad - LC network character
                 return 0.6f;
 
             case Model::API_550A:
             {
-                // AUDIT FIX - quadratic growth
-                // Most aggressive proportional Q of all models
-                // At +2dB: Q≈0.7  At +12dB: Q≈3.5
+                // FIX - quadratic growth capped at 2.5
+                // Previous max of 5.0 was too aggressive
+                // Real API 550A proportional Q ~2.5 max
                 float absGain = std::abs(midGain);
                 if (absGain < 1.0f) return 0.7f;
                 float norm = absGain / 15.0f;
-                return 0.7f + norm * norm * 4.3f;
+                return 0.7f + norm * norm * 1.8f;
+                // At  2dB: Q = 0.73
+                // At  6dB: Q = 0.88
+                // At 12dB: Q = 1.42
+                // At 15dB: Q = 2.50
             }
 
             default: return midQ;
@@ -336,16 +320,14 @@ private:
     {
         float gainToUse = lowGain;
 
-        // AUDIT FIX - Neve 1073 boost-only low shelf
-        // Hardware passive circuit constraint
+        // Neve 1073 boost-only constraint
         if (model == Model::NEVE_1073)
             gainToUse = std::max(0.0f, gainToUse);
 
         if (model == Model::PULTEC)
         {
-            // AUDIT FIX - corrected multipliers
-            // 1.41 (sqrt 2 = half octave above)
-            // not 1.5 as was previously used
+            // Corrected multipliers per audit
+            // 1.41 (half octave above) not 1.5
             // Cut gain ratio 0.4 not 0.5
             calcLowShelf(lowBand,
                 lowFreq, gainToUse, 0.5);
@@ -370,8 +352,6 @@ private:
     //──────────────────────────────────────────────
     void calcMidBand(float Q)
     {
-        // SSL SVF is calculated separately
-        // Other models use standard biquad peak
         if (model != Model::SSL_4000E)
             calcPeakEQ(midFreq, midGain, Q);
     }
@@ -387,9 +367,6 @@ private:
 
     //──────────────────────────────────────────────
     // HPF - model correct order
-    // Neve: 6dB/oct (1-pole)
-    // SSL/API: 18dB/oct (cascade 12 + 6)
-    // Pultec: none
     //──────────────────────────────────────────────
     void calcHPF()
     {
@@ -407,18 +384,14 @@ private:
         if (model == Model::NEVE_1073
          || model == Model::NEVE_1084)
         {
-            // 1-pole 6dB/oct - correct for Neve
             calcFirstOrderHPF(hpfBand, hpfFreq);
             for (int ch = 0; ch < 2; ch++)
                 hpfBand2[ch].setUnity();
         }
         else
         {
-            // 2-pole 12dB/oct base
             calcSecondOrderHPF(hpfBand, hpfFreq);
 
-            // AUDIT FIX - SSL gets extra 1-pole
-            // = 18dB/oct total
             if (model == Model::SSL_4000E)
                 calcFirstOrderHPF(hpfBand2, hpfFreq);
             else
@@ -429,8 +402,6 @@ private:
 
     //──────────────────────────────────────────────
     // NEVE TRANSFORMER HPF
-    // Fixed 25Hz 1-pole always active on Neve models
-    // Tightens the extreme sub-bass
     //──────────────────────────────────────────────
     void calcNeveTransformerHPF()
     {
@@ -447,9 +418,7 @@ private:
     }
 
     //──────────────────────────────────────────────
-    // NEVE INDUCTOR RESONANCE BLOOM
-    // Small peak above low shelf frequency
-    // Creates the "pillowy" Neve low end character
+    // NEVE INDUCTOR BLOOM
     //──────────────────────────────────────────────
     void calcNeveInductorBloom()
     {
@@ -471,8 +440,6 @@ private:
 
     //──────────────────────────────────────────────
     // PULTEC LC ALLPASS
-    // Phase bloom from LC network resonance
-    // Adds the characteristic Pultec "roundness"
     //──────────────────────────────────────────────
     void calcPultecAllpass()
     {
@@ -483,10 +450,8 @@ private:
                 * lowFreq / sr;
             double cosw  = std::cos(w0);
             double sinw  = std::sin(w0);
-            double alpha = sinw / (2.0 * 1.0); // Q=1.0
+            double alpha = sinw / (2.0 * 1.0);
 
-            // 2nd order allpass coefficients
-            // Note: b = reversed(a) - allpass property
             double b0 = 1.0 - alpha;
             double b1 = -2.0 * cosw;
             double b2 = 1.0 + alpha;
@@ -507,17 +472,13 @@ private:
 
     //──────────────────────────────────────────────
     // SSL SVF MID BAND
-    // State Variable Filter - gives SSL bell shape
-    // Boost and cut are not mirror images
-    // This is the SSL 4000E character
     //──────────────────────────────────────────────
     void calcSSLSVF(float Q)
     {
         if (model != Model::SSL_4000E) return;
 
-        float freq = midFreq;
         float w  = 2.0f * juce::MathConstants<float>::pi
-                 * freq / static_cast<float>(sr);
+                 * midFreq / static_cast<float>(sr);
         svfG  = std::tan(w * 0.5f);
         svfK  = 1.0f / Q;
         svfA1 = 1.0f / (1.0f + svfG * (svfG + svfK));
@@ -540,8 +501,6 @@ private:
         s.bp = 2.0f * v1 - s.bp;
         s.lp = 2.0f * v2 - s.lp;
 
-        // Peaking EQ from SVF bandpass output
-        // (svfGain - 1/svfGain) creates asymmetry
         float peakOut = x + (svfGain - 1.0f / svfGain)
                       * svfK * 0.5f * v1;
 
@@ -550,8 +509,7 @@ private:
 
     //──────────────────────────────────────────────
     // MODEL COLORATION
-    // AUDIT FIX - always runs even at zero gain
-    // This is what makes it a color EQ
+    // Always runs even at zero gain
     //──────────────────────────────────────────────
     float applyModelColor(float x, int ch)
     {
@@ -563,9 +521,8 @@ private:
                 // Even harmonic - transformer core
                 float y = x + 0.004f * x * x;
 
-                // AUDIT FIX - sustained envelope
-                // for transformer magnetization
-                // Not instantaneous signal level
+                // Sustained envelope for transformer
+                // magnetization - not instantaneous
                 neveEnv[ch] = neveEnvCoeff
                             * neveEnv[ch]
                             + (1.0f - neveEnvCoeff)
@@ -583,23 +540,21 @@ private:
             }
 
             case Model::SSL_4000E:
-                // Clean - no coloration at zero gain
+                // Clean - no coloration
                 return x;
 
             case Model::PULTEC:
             {
-                // AUDIT FIX - level dependent tube saturation
+                // Level dependent tube saturation
                 // 12AU7 output stage
-                // More 2nd harmonic at higher levels
                 float drive = 1.0f + std::abs(x) * 0.4f;
-                return std::tanh(x * drive) / drive;
+                return AnalogMath::safeTanh(x * drive)
+                     / drive;
             }
 
             case Model::API_550A:
             {
-                // AUDIT FIX - add 3rd harmonic
-                // 2520 op-amp generates both 2nd and 3rd
-                // 3rd more pronounced than Neve
+                // 2nd and 3rd harmonic from 2520 op-amp
                 float h2 = 0.004f * x * std::abs(x);
                 float h3 = 0.006f * x * x * x;
                 return x + h2 + h3;
@@ -612,7 +567,6 @@ private:
 
     //──────────────────────────────────────────────
     // FILTER CALCULATIONS
-    // All use Audio EQ Cookbook formulas
     //──────────────────────────────────────────────
 
     void calcLowShelf(BiquadFilter* bands,
@@ -698,7 +652,6 @@ private:
         double sinw  = std::sin(w0);
         double alpha = sinw / (2.0 * Q);
 
-        // Note: b1 == a1 for peaking EQ (always)
         double b0 = 1.0 + alpha * A;
         double b1 = -2.0 * cosw;
         double b2 = 1.0 - alpha * A;
@@ -711,7 +664,6 @@ private:
                 b0, b1, b2, a0, a1, a2);
     }
 
-    // Separate peak filter for bloom and resonance
     void calcPeakFilter(BiquadFilter* bands,
                         float freq, float gain, float Q)
     {
@@ -742,8 +694,6 @@ private:
                 b0, b1, b2, a0, a1, a2);
     }
 
-    // 1-pole HPF (6dB/oct) - bilinear transform
-    // Correct for Neve and transformer HPF
     void calcFirstOrderHPF(BiquadFilter* bands,
                            float freq)
     {
@@ -764,7 +714,6 @@ private:
                 b0, b1, b2, a0, a1, a2);
     }
 
-    // 2-pole Butterworth HPF (12dB/oct)
     void calcSecondOrderHPF(BiquadFilter* bands,
                             float freq)
     {

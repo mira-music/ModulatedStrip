@@ -177,6 +177,18 @@ ModulatedStripEditor::ModulatedStripEditor(
     compBypassAtt = std::make_unique<ButtonAtt>(
         apvts, "compBypass", compBypassBtn);
 
+	fairchildTCAtt = std::make_unique<ComboAtt>(
+		apvts, "fairchildTC", fairchildTCSelector);
+		
+	allInAtt = std::make_unique<ButtonAtt>(
+        apvts, "allButtonsIn", allInBtn);
+	thrustAtt = std::make_unique<ButtonAtt>(
+        apvts, "thrustOn", thrustBtn);
+    topologyAtt = std::make_unique<ButtonAtt>(
+        apvts, "feedbackMode", topologyBtn);
+    la2aLimitAtt = std::make_unique<ButtonAtt>(
+        apvts, "la2aLimit", la2aLimitBtn);
+
     eqLowGainAtt = std::make_unique<SliderAtt>(
         apvts, "eqLowGain",
         eqLowGainKnob.getSlider());
@@ -499,15 +511,20 @@ void ModulatedStripEditor::updateEQUI(int modelIndex)
 //==============================================================================
 // TIMER - Meters at 30Hz
 //==============================================================================
+
 void ModulatedStripEditor::timerCallback()
 {
     inputMeter .setLevel(processor.getInputPeak());
     outputMeter.setLevel(processor.getOutputPeak());
 
-    float gr = std::abs(processor.getGainReduction());
-    float grLinear = juce::Decibels::decibelsToGain(
-        -gr, -60.0f);
-    grMeter.setLevel(1.0f - grLinear);
+    // GR meter correct scaling
+    // 0dB GR  = grNorm 0.0 = bar empty
+    // 20dB GR = grNorm 1.0 = bar full
+    float grDb   = std::abs(processor.getGainReduction());
+    float grNorm = juce::jlimit(0.0f, 1.0f, grDb / 20.0f);
+    float grLevel = juce::Decibels::decibelsToGain(
+        -60.0f * (1.0f - grNorm));
+    grMeter.setLevel(grLevel);
 }
 
 //==============================================================================

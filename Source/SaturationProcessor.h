@@ -1,6 +1,7 @@
 #pragma once
 #include <JuceHeader.h>
 #include <cmath>
+#include "AnalogMath.h"
 
 class SaturationProcessor
 {
@@ -10,11 +11,7 @@ public:
     {
         sr = sampleRate;
 
-        // CRITICAL FIX - DC blocker coefficient
-        // Computed from sample rate not hardcoded
-        // At 44100: coefficient = 0.99715
-        // At 96000: coefficient = 0.99869
-        // At 192000: coefficient = 0.99935
+        // Sample-rate-correct DC blocker
         // Ensures consistent 20Hz cutoff at all rates
         dcCoeff = std::exp(
             -2.0f * juce::MathConstants<float>::pi
@@ -24,10 +21,12 @@ public:
         {
             dcPrevIn[ch]  = 0.0f;
             dcPrevOut[ch] = 0.0f;
-            sustainEnv[ch] = 0.0f;
         }
     }
 
+    // Process using flat block values
+    // Smoothers are advanced in PluginProcessor.cpp
+    // using skip() to avoid the snapshot/freeze bug
     void process(juce::AudioBuffer<float>& buffer,
                  float drive,
                  float mix,
@@ -36,16 +35,20 @@ public:
         int numChannels = buffer.getNumChannels();
         int numSamples  = buffer.getNumSamples();
 
-        // CRITICAL FIX - compute ceiling ONCE per block
-        // Not per sample (was calling tanh every sample)
-        // preGain never changes within a block
-        float preGain   = 1.0f + drive * 9.0f;
-        float ceiling   = (drive >= 0.001f)
+        // Compute ceiling once per block
+        float preGain    = 1.0f + drive * 9.0f;
+        float ceiling    = (drive >= 0.001f)
             ? applySaturation(preGain, model)
             : 1.0f;
         float invCeiling = (ceiling > 0.001f)
             ? 1.0f / ceiling
             : 1.0f;
+
+        // Only asymmetric models need DC blocking
+        // NEVE, TUBE, IRON
+        bool needsDC = (model == 0
+                     || model == 3
+                     || model == 6);
 
         for (int ch = 0; ch < numChannels; ch++)
         {
@@ -58,48 +61,39 @@ public:
 
                 if (drive >= 0.001f)
                 {
-                    float pushed     = dry * preGain;
-                    float saturated  = applySaturation(
+                    float pushed      = dry * preGain;
+                    float saturated   = applySaturation(
                         pushed, model);
-
-                    // Use pre-computed invCeiling
                     float compensated = saturated
                                       * invCeiling;
 
-                    output = dry * (1.0f - mix)
+                    output = dry        * (1.0f - mix)
                            + compensated * mix;
                 }
 
-                // DC blocker always runs
-                // Uses sample-rate-corrected coefficient
-                float dcOut = output
-                            - dcPrevIn[ch]
-                            + dcCoeff * dcPrevOut[ch];
-                dcPrevIn[ch]  = output;
-                dcPrevOut[ch] = dcOut;
-                data[i] = dcOut;
+                if (needsDC)
+                {
+                    float dcOut = output
+                                - dcPrevIn[ch]
+                                + dcCoeff * dcPrevOut[ch];
+                    dcPrevIn[ch]  = output;
+                    dcPrevOut[ch] = dcOut;
+                    data[i] = dcOut;
+                }
+                else
+                {
+                    data[i] = output;
+                }
             }
         }
     }
 
 private:
     double sr      = 44100.0;
-    float  dcCoeff = 0.9995f; // updated in prepare()
+    float  dcCoeff = 0.9995f;
 
-    float dcPrevIn[2]   = { 0.0f, 0.0f };
-    float dcPrevOut[2]  = { 0.0f, 0.0f };
-    float sustainEnv[2] = { 0.0f, 0.0f };
-
-    // Fast tanh approximation
-    // Padé approximant - accurate to 0.5% for |x| < 3
-    // 3x faster than std::tanh
-    inline float safeTanh(float x)
-    {
-        if (x >  3.0f) return  1.0f;
-        if (x < -3.0f) return -1.0f;
-        float x2 = x * x;
-        return x * (27.0f + x2) / (27.0f + 9.0f * x2);
-    }
+    float dcPrevIn[2]  = { 0.0f, 0.0f };
+    float dcPrevOut[2] = { 0.0f, 0.0f };
 
     float applySaturation(float x, int model)
     {
@@ -117,41 +111,38 @@ private:
     }
 
     // NEVE - Transformer + Class A
-    // Even harmonics dominant
-    // FIX: second harmonic injection now post-saturation
-    // and scales with drive level
+    // Bounded second harmonic relative to output
+    // Prevents the previous h2 overflow bug
     float neve(float x)
     {
-    float bias   = 0.15f;
-    float biased = x + bias;
+        float bias   = 0.15f;
+        float biased = x + bias;
 
-    float y;
-    if (biased >= 0.0f)
-        y = safeTanh(biased * 1.2f);
-    else
-        y = safeTanh(biased * 1.8f) * 0.85f;
+        float y;
+        if (biased >= 0.0f)
+            y = AnalogMath::safeTanh(biased * 1.2f);
+        else
+            y = AnalogMath::safeTanh(biased * 1.8f)
+              * 0.85f;
 
-    // AUDIT FIX - second harmonic scales with drive
-    // Applied to biased signal not dry input
-    // drive is passed in via preGain relationship
-    // approximate drive from preGain context
-    float h2 = 0.06f * biased * biased;
-    y = y + h2;
+        // Bounded 2nd harmonic relative to output
+        float yAbs = std::abs(y);
+        float h2   = 0.06f * yAbs * y;
+        y = y + h2;
 
-    return y;
-}
+        return y;
+    }
 
     // SSL - VCA
-    // Symmetric, clean, odd harmonics only
+    // Symmetric, clean, odd harmonics
     float ssl(float x)
     {
-        float y = safeTanh(x * 1.1f);
+        float y = AnalogMath::safeTanh(x * 1.1f);
         y += 0.02f * x * x * x;
         return y;
     }
 
     // API - Discrete op-amp
-    // Clean linear region, hard knee above 0.6
     float api(float x)
     {
         float y;
@@ -163,44 +154,36 @@ private:
         {
             float sign = (x > 0.0f) ? 1.0f : -1.0f;
             float absx = std::abs(x);
-            y = sign * (0.6f +
-                safeTanh((absx - 0.6f) * 3.0f)
+            y = sign * (0.6f
+                + AnalogMath::safeTanh(
+                    (absx - 0.6f) * 3.0f)
                 * 0.35f);
         }
         return y;
     }
 
-    // TUBE - 12AX7 triode
-    // Strong even harmonics, asymmetric
-    // Hard cutoff floor below bias
+    // TUBE - 12AX7 Child-Langmuir 3/2 power law
     float tube(float x)
     {
-        float bias   = 0.25f;
-        float biased = x + bias;
+        float bias = 0.25f;
+        float Vgk  = x + bias;
 
-        // Hard cutoff - tube goes dark below -0.8
-        if (biased < -0.8f) return -0.18f;
+        // Hard cutoff
+        if (Vgk < -0.8f) return -0.18f;
 
-        float y;
-        if (biased >= 0.0f)
-        {
-            // Plate saturation ceiling
-            y = 1.0f - std::exp(-biased * 1.5f);
-        }
-        else
-        {
-            // Tube cutoff approach
-            y = -(1.0f - std::exp(biased * 2.5f));
-        }
+        float Vp      = 1.0f;
+        float ip      = std::pow(
+            std::max(0.0f, Vgk + Vp / 20.0f), 1.5f);
+        float ipNorm  = std::min(ip, 1.0f);
 
-        // Strong 2nd harmonic
-        y += 0.15f * x * x;
+        float y = (ipNorm - 0.5f) * 2.0f
+                + 0.12f * x * x;
 
         return y * 0.85f;
     }
 
     // TAPE - Magnetic oxide
-    // Arctangent is correct for tape saturation
+    // Arctangent mathematically correct for tape
     float tape(float x)
     {
         float y = (2.0f / juce::MathConstants<float>::pi)
@@ -208,41 +191,33 @@ private:
                     x * juce::MathConstants<float>::pi
                     * 0.5f);
 
-        // Gentle intermodulation
         y += 0.015f * x * std::abs(x);
-
         return y;
     }
 
-    // FET - JFET input stage
-    // Hard knee, piecewise tanh
-    // Aliasing sin() term removed
+    // FET - JFET
     float fet(float x)
     {
         const float threshold = 0.7f;
 
         if (std::abs(x) <= threshold)
-        {
             return x + 0.05f * x * x * x;
-        }
-        else
-        {
-            float sign   = (x > 0.0f) ? 1.0f : -1.0f;
-            float absx   = std::abs(x);
-            float excess = absx - threshold;
 
-            float clipped = threshold
-                          + safeTanh(excess * 4.0f)
-                          * (1.0f - threshold);
+        float sign   = (x > 0.0f) ? 1.0f : -1.0f;
+        float absx   = std::abs(x);
+        float excess = absx - threshold;
 
-            return sign * clipped;
-        }
+        float clipped = threshold
+                      + AnalogMath::safeTanh(excess * 4.0f)
+                      * (1.0f - threshold);
+
+        return sign * clipped;
     }
 
-    // IRON - Output transformer only
+    // IRON - Output transformer
     float iron(float x)
     {
-        float y = safeTanh(x * 1.05f) / 1.02f;
+        float y = AnalogMath::safeTanh(x * 1.05f) / 1.02f;
         y += 0.03f * x * x
            * (x > 0.0f ? 1.0f : -1.0f);
         return y;

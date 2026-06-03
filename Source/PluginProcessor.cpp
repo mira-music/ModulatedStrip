@@ -11,12 +11,19 @@ ModulatedStripProcessor::ModulatedStripProcessor()
       apvts(*this, nullptr, "Parameters", createParameters())
 {
     // Cache all parameter pointers once
+    // No string lookups on audio thread
+
+    // Input / Output
     pInputGain     = apvts.getRawParameterValue("inputGain");
     pOutputGain    = apvts.getRawParameterValue("outputGain");
+
+    // Saturation
     pDrive         = apvts.getRawParameterValue("drive");
     pSatMix        = apvts.getRawParameterValue("satMix");
     pSatModel      = apvts.getRawParameterValue("satModel");
     pSatBypass     = apvts.getRawParameterValue("satBypass");
+
+    // Compressor
     pCompModel     = apvts.getRawParameterValue("compModel");
     pCompThreshold = apvts.getRawParameterValue("compThreshold");
     pCompRatio     = apvts.getRawParameterValue("compRatio");
@@ -26,6 +33,15 @@ ModulatedStripProcessor::ModulatedStripProcessor()
     pCompMix       = apvts.getRawParameterValue("compMix");
     pCompKnee      = apvts.getRawParameterValue("compKnee");
     pCompBypass    = apvts.getRawParameterValue("compBypass");
+    pFairchildTC   = apvts.getRawParameterValue("fairchildTC");
+
+    // Compressor extra controls
+    pAllButtonsIn  = apvts.getRawParameterValue("allButtonsIn");
+    pThrustOn      = apvts.getRawParameterValue("thrustOn");
+    pFeedbackMode  = apvts.getRawParameterValue("feedbackMode");
+    pLa2aLimit     = apvts.getRawParameterValue("la2aLimit");
+
+    // EQ
     pEqModel       = apvts.getRawParameterValue("eqModel");
     pEqLowGain     = apvts.getRawParameterValue("eqLowGain");
     pEqLowFreq     = apvts.getRawParameterValue("eqLowFreq");
@@ -46,11 +62,8 @@ void ModulatedStripProcessor::prepareToPlay(
 {
     saturation.prepare(sampleRate);
     compressor.prepare(sampleRate);
-    equalizer.prepare(sampleRate);
+    equalizer .prepare(sampleRate);
 
-    // Initialize all smoothed values
-    // setCurrentAndTargetValue sets both immediately
-    // No ramp on first block
     double sr = sampleRate;
 
     inputGainSmoothed .reset(sr, 0.010);
@@ -60,7 +73,8 @@ void ModulatedStripProcessor::prepareToPlay(
     satMixSmoothed    .reset(sr, 0.020);
     compMixSmoothed   .reset(sr, 0.020);
 
-    // Set starting values from current parameters
+    // setCurrentAndTargetValue ONLY in prepareToPlay
+    // Never in processBlock - that resets ramps mid-flight
     inputGainSmoothed .setCurrentAndTargetValue(
         juce::Decibels::decibelsToGain(
             pInputGain->load()));
@@ -98,26 +112,39 @@ void ModulatedStripProcessor::processBlock(
     int numChannels = buffer.getNumChannels();
 
     //──────────────────────────────────────────────
-    // READ PARAMETERS (cached pointers - no string lookup)
+    // READ ALL PARAMETERS
     //──────────────────────────────────────────────
+
+    // Input / Output
     float inputGainDb  = pInputGain->load();
     float outputGainDb = pOutputGain->load();
-    float drive        = pDrive->load()   / 100.0f;
-    float satMix       = pSatMix->load()  / 100.0f;
-    int   satModel     = static_cast<int>(pSatModel->load());
-    bool  satBypassed  = pSatBypass->load()  > 0.5f;
 
-    int   compModel    = static_cast<int>(pCompModel->load());
+    // Saturation
+    int   satModel     = static_cast<int>(
+                             pSatModel->load());
+    bool  satBypassed  = pSatBypass->load() > 0.5f;
+
+    // Compressor
+    int   compModel    = static_cast<int>(
+                             pCompModel->load());
     float compThresh   = pCompThreshold->load();
     float compRatio    = pCompRatio->load();
     float compAttack   = pCompAttack->load();
     float compRelease  = pCompRelease->load();
-    float compMakeup   = pCompMakeup->load();
-    float compMix      = pCompMix->load()  / 100.0f;
     float compKnee     = pCompKnee->load();
     bool  compBypassed = pCompBypass->load() > 0.5f;
+    int   fairchildTC  = static_cast<int>(
+                             pFairchildTC->load());
 
-    int   eqModel      = static_cast<int>(pEqModel->load());
+    // Compressor extra controls
+    bool  allButtonsIn = pAllButtonsIn->load() > 0.5f;
+    bool  thrustOn     = pThrustOn->load()     > 0.5f;
+    bool  feedbackMode = pFeedbackMode->load() > 0.5f;
+    bool  la2aLimit    = pLa2aLimit->load()    > 0.5f;
+
+    // EQ
+    int   eqModel      = static_cast<int>(
+                             pEqModel->load());
     float eqLowGain    = pEqLowGain->load();
     float eqLowFreq    = pEqLowFreq->load();
     float eqMidGain    = pEqMidGain->load();
@@ -127,23 +154,26 @@ void ModulatedStripProcessor::processBlock(
     float eqHighFreq   = pEqHighFreq->load();
     float eqHPF        = pEqHPF->load();
     bool  eqBypassed   = pEqBypass->load()  > 0.5f;
-    bool  eqPreComp    = pEqPreComp->load()  > 0.5f;
+    bool  eqPreComp    = pEqPreComp->load() > 0.5f;
 
     //──────────────────────────────────────────────
-    // CRITICAL FIX - SET SMOOTHED TARGETS
-    // Do NOT call getNextValue() here
-    // Just set the target for this block
-    // getNextValue() called inside the sample loop
+    // SET SMOOTHED TARGETS ONLY
+    // Never setCurrentAndTargetValue in processBlock
+    // That would reset ramps mid-flight
     //──────────────────────────────────────────────
     inputGainSmoothed .setTargetValue(
         juce::Decibels::decibelsToGain(inputGainDb));
     outputGainSmoothed.setTargetValue(
         juce::Decibels::decibelsToGain(outputGainDb));
-    driveSmoothed     .setTargetValue(drive);
+    driveSmoothed     .setTargetValue(
+        pDrive->load() / 100.0f);
     makeupSmoothed    .setTargetValue(
-        juce::Decibels::decibelsToGain(compMakeup));
-    satMixSmoothed    .setTargetValue(satMix);
-    compMixSmoothed   .setTargetValue(compMix);
+        juce::Decibels::decibelsToGain(
+            pCompMakeup->load()));
+    satMixSmoothed    .setTargetValue(
+        pSatMix->load() / 100.0f);
+    compMixSmoothed   .setTargetValue(
+        pCompMix->load() / 100.0f);
 
     //──────────────────────────────────────────────
     // UPDATE EQ (dirty flag handles recalculation)
@@ -159,7 +189,7 @@ void ModulatedStripProcessor::processBlock(
     equalizer.setHPF      (eqHPF);
 
     //──────────────────────────────────────────────
-    // MEASURE INPUT PEAK
+    // MEASURE INPUT
     //──────────────────────────────────────────────
     float inPeak = 0.0f;
     for (int ch = 0; ch < numChannels; ch++)
@@ -179,53 +209,82 @@ void ModulatedStripProcessor::processBlock(
     }
 
     //──────────────────────────────────────────────
-    // STAGE 2 - SATURATION (smoothed drive)
+    // STAGE 2 - SATURATION
+    // skip() advances smoother properly across block
+    // Returns end-of-block value for processing
     //──────────────────────────────────────────────
     if (!satBypassed)
     {
-        // Get smoothed values for this block
-        // CRITICAL FIX: snapshot the smoother state
-        // then pass current value - do not call
-        // getNextValue twice for drive and mix
-        float currentDrive   = driveSmoothed  .getNextValue();
-        float currentSatMix  = satMixSmoothed .getNextValue();
-
-        // Restore smoother position for accurate ramp
-        // by processing remaining samples inside sat module
-        driveSmoothed .setCurrentAndTargetValue(currentDrive);
-        satMixSmoothed.setCurrentAndTargetValue(currentSatMix);
+        float currentDrive  = driveSmoothed .skip(
+            numSamples);
+        float currentSatMix = satMixSmoothed.skip(
+            numSamples);
 
         saturation.process(buffer,
                            currentDrive,
                            currentSatMix,
                            satModel);
     }
+    else
+    {
+        // Advance smoothers when bypassed
+        // Prevents stale state on re-enable
+        driveSmoothed .skip(numSamples);
+        satMixSmoothed.skip(numSamples);
+    }
 
     //──────────────────────────────────────────────
-    // STAGE 3 & 4 - EQ AND COMPRESSOR
-    // Order controlled by eqPreComp switch
+    // SETUP COMPRESSOR
+    // All parameters including extra model controls
     //──────────────────────────────────────────────
-
-    // Setup compressor parameters
-    // Model change triggers state reset internally
-    compressor.setModel    (compModel);
-    compressor.setThreshold(compThresh);
-    compressor.setRatio    (compRatio);
-    compressor.setAttack   (compAttack);
-    compressor.setRelease  (compRelease);
-    compressor.setMix      (compMixSmoothed.getNextValue());
-    compressor.setKnee     (compKnee);
+    compressor.setModel        (compModel);
+    compressor.setThreshold    (compThresh);
+    compressor.setRatio        (compRatio);
+    compressor.setAttack       (compAttack);
+    compressor.setRelease      (compRelease);
+    compressor.setKnee         (compKnee);
+    compressor.setFairchildTC  (fairchildTC);
+    compressor.setAllButtonsIn (allButtonsIn);
+    compressor.setThrustOn     (thrustOn);
+    compressor.setFeedbackMode (feedbackMode);
+    compressor.setLa2aLimit    (la2aLimit);
     compressor.setMakeupSmoothed(makeupSmoothed);
+    compressor.setMixSmoothed  (compMixSmoothed);
 
+    //──────────────────────────────────────────────
+    // STAGES 3 AND 4 - EQ AND COMPRESSOR
+    // Order depends on eqPreComp switch
+    // Advance smoothers when bypassed
+    //──────────────────────────────────────────────
     if (eqPreComp)
     {
-        if (!eqBypassed)  equalizer.process(buffer);
-        if (!compBypassed) compressor.process(buffer);
+        if (!eqBypassed)
+            equalizer.process(buffer);
+
+        if (!compBypassed)
+        {
+            compressor.process(buffer);
+        }
+        else
+        {
+            makeupSmoothed .skip(numSamples);
+            compMixSmoothed.skip(numSamples);
+        }
     }
     else
     {
-        if (!compBypassed) compressor.process(buffer);
-        if (!eqBypassed)  equalizer.process(buffer);
+        if (!compBypassed)
+        {
+            compressor.process(buffer);
+        }
+        else
+        {
+            makeupSmoothed .skip(numSamples);
+            compMixSmoothed.skip(numSamples);
+        }
+
+        if (!eqBypassed)
+            equalizer.process(buffer);
     }
 
     //──────────────────────────────────────────────
@@ -240,20 +299,17 @@ void ModulatedStripProcessor::processBlock(
     }
 
     //──────────────────────────────────────────────
-    // CRITICAL FIX - OUTPUT SOFT CLIPPER
-    // Transparent tanh at -0.5dBFS
-    // Prevents excursions during model switches
-    // Essential for live PA use
+    // OUTPUT SOFT CLIPPER
     //──────────────────────────────────────────────
     for (int ch = 0; ch < numChannels; ch++)
     {
         float* data = buffer.getWritePointer(ch);
         for (int i = 0; i < numSamples; i++)
-            data[i] = softClip(data[i]);
+            data[i] = AnalogMath::softClip(data[i]);
     }
 
     //──────────────────────────────────────────────
-    // MEASURE OUTPUT PEAK
+    // MEASURE OUTPUT
     //──────────────────────────────────────────────
     float outPeak = 0.0f;
     for (int ch = 0; ch < numChannels; ch++)
@@ -290,7 +346,9 @@ ModulatedStripProcessor::createParameters()
     std::vector<std::unique_ptr<juce::RangedAudioParameter>>
         params;
 
+    //──────────────────────────────────────────────
     // INPUT / OUTPUT
+    //──────────────────────────────────────────────
     params.push_back(
         std::make_unique<juce::AudioParameterFloat>(
             "inputGain",  "Input Gain",
@@ -300,14 +358,16 @@ ModulatedStripProcessor::createParameters()
             "outputGain", "Output Gain",
             -24.0f, 24.0f, 0.0f));
 
+    //──────────────────────────────────────────────
     // SATURATION
+    //──────────────────────────────────────────────
     params.push_back(
         std::make_unique<juce::AudioParameterFloat>(
-            "drive",    "Drive",
+            "drive", "Drive",
             0.0f, 100.0f, 0.0f));
     params.push_back(
         std::make_unique<juce::AudioParameterFloat>(
-            "satMix",   "Sat Mix",
+            "satMix", "Sat Mix",
             0.0f, 100.0f, 100.0f));
     params.push_back(
         std::make_unique<juce::AudioParameterChoice>(
@@ -320,7 +380,9 @@ ModulatedStripProcessor::createParameters()
         std::make_unique<juce::AudioParameterBool>(
             "satBypass", "Sat Bypass", false));
 
+    //──────────────────────────────────────────────
     // COMPRESSOR
+    //──────────────────────────────────────────────
     params.push_back(
         std::make_unique<juce::AudioParameterChoice>(
             "compModel", "Comp Model",
@@ -360,7 +422,46 @@ ModulatedStripProcessor::createParameters()
         std::make_unique<juce::AudioParameterBool>(
             "compBypass", "Comp Bypass", false));
 
+    //──────────────────────────────────────────────
+    // COMPRESSOR EXTRA CONTROLS
+    //──────────────────────────────────────────────
+
+    // Fairchild 6-position time constant selector
+    params.push_back(
+        std::make_unique<juce::AudioParameterChoice>(
+            "fairchildTC", "Fairchild TC",
+            juce::StringArray{
+                "TC 1  (0.2ms / 0.3s)",
+                "TC 2  (0.2ms / 0.8s)",
+                "TC 3  (0.4ms / 2.0s)",
+                "TC 4  (0.4ms / Auto)",
+                "TC 5  (0.4ms / 5.0s)",
+                "TC 6  (0.4ms / Auto fast)"},
+            0));
+
+    // 1176 all-buttons-in mode
+    params.push_back(
+        std::make_unique<juce::AudioParameterBool>(
+            "allButtonsIn", "All Buttons In", false));
+
+    // API 2500 Thrust on/off
+    params.push_back(
+        std::make_unique<juce::AudioParameterBool>(
+            "thrustOn", "Thrust On", true));
+
+    // API 2500 topology FWD/BACK
+    params.push_back(
+        std::make_unique<juce::AudioParameterBool>(
+            "feedbackMode", "Feedback Mode", false));
+
+    // LA-2A compress/limit mode
+    params.push_back(
+        std::make_unique<juce::AudioParameterBool>(
+            "la2aLimit", "LA2A Limit", false));
+
+    //──────────────────────────────────────────────
     // EQ
+    //──────────────────────────────────────────────
     params.push_back(
         std::make_unique<juce::AudioParameterChoice>(
             "eqModel", "EQ Model",

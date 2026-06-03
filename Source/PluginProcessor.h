@@ -1,5 +1,6 @@
 #pragma once
 #include <JuceHeader.h>
+#include "AnalogMath.h"
 #include "SaturationProcessor.h"
 #include "CompressorProcessor.h"
 #include "EQProcessor.h"
@@ -54,13 +55,24 @@ private:
     CompressorProcessor compressor;
     EQProcessor         equalizer;
 
-    // Cached parameter pointers
+    //──────────────────────────────────────────────
+    // CACHED PARAMETER POINTERS
+    // Set once in constructor
+    // Read directly in processBlock
+    // No string lookups on audio thread
+    //──────────────────────────────────────────────
+
+    // Input / Output
     std::atomic<float>* pInputGain     = nullptr;
     std::atomic<float>* pOutputGain    = nullptr;
+
+    // Saturation
     std::atomic<float>* pDrive         = nullptr;
     std::atomic<float>* pSatMix        = nullptr;
     std::atomic<float>* pSatModel      = nullptr;
     std::atomic<float>* pSatBypass     = nullptr;
+
+    // Compressor
     std::atomic<float>* pCompModel     = nullptr;
     std::atomic<float>* pCompThreshold = nullptr;
     std::atomic<float>* pCompRatio     = nullptr;
@@ -70,6 +82,15 @@ private:
     std::atomic<float>* pCompMix       = nullptr;
     std::atomic<float>* pCompKnee      = nullptr;
     std::atomic<float>* pCompBypass    = nullptr;
+    std::atomic<float>* pFairchildTC   = nullptr;
+
+    // Compressor extra controls
+    std::atomic<float>* pAllButtonsIn  = nullptr;
+    std::atomic<float>* pThrustOn      = nullptr;
+    std::atomic<float>* pFeedbackMode  = nullptr;
+    std::atomic<float>* pLa2aLimit     = nullptr;
+
+    // EQ
     std::atomic<float>* pEqModel       = nullptr;
     std::atomic<float>* pEqLowGain     = nullptr;
     std::atomic<float>* pEqLowFreq     = nullptr;
@@ -82,7 +103,10 @@ private:
     std::atomic<float>* pEqBypass      = nullptr;
     std::atomic<float>* pEqPreComp     = nullptr;
 
-    // Smoothed parameters
+    //──────────────────────────────────────────────
+    // SMOOTHED PARAMETERS
+    // Ramp over 10-20ms to prevent clicks
+    //──────────────────────────────────────────────
     juce::SmoothedValue<float,
         juce::ValueSmoothingTypes::Linear> inputGainSmoothed;
     juce::SmoothedValue<float,
@@ -96,28 +120,10 @@ private:
     juce::SmoothedValue<float,
         juce::ValueSmoothingTypes::Linear> compMixSmoothed;
 
-    // Metering
+    // Metering - written by audio thread
+    // read by GUI thread at 30Hz
     std::atomic<float> inputPeak  { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
-
-    // CRITICAL FIX - output soft clipper
-    // Protects against level excursions during model switches
-    // Transparent tanh soft clip at -0.5dBFS
-    inline float softClip(float x)
-    {
-        const float ceiling = 0.944f; // -0.5dBFS
-        if (x > ceiling || x < -ceiling)
-            return ceiling * safeTanh(x / ceiling);
-        return x;
-    }
-
-    inline float safeTanh(float x)
-    {
-        if (x >  3.0f) return  1.0f;
-        if (x < -3.0f) return -1.0f;
-        float x2 = x * x;
-        return x * (27.0f + x2) / (27.0f + 9.0f * x2);
-    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)

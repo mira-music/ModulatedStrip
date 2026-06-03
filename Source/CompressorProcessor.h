@@ -2,6 +2,7 @@
 #include <JuceHeader.h>
 #include <cmath>
 #include <algorithm>
+#include "AnalogMath.h"
 
 class CompressorProcessor
 {
@@ -16,8 +17,6 @@ public:
         API_2500  = 4
     };
 
-    // CRITICAL FIX - Fairchild 6-position time constants
-    // Authentic hardware values from the manual
     struct FairchildTC
     {
         float attackMs;
@@ -25,31 +24,39 @@ public:
         bool  programDependent;
     };
 
-    static constexpr FairchildTC fairchildPositions[6] = {
-        { 0.2f,   300.0f, false },  // Position 1
-        { 0.2f,   800.0f, false },  // Position 2
-        { 0.4f,  2000.0f, false },  // Position 3
-        { 0.4f,  5000.0f, true  },  // Position 4 (program)
-        { 0.4f,  5000.0f, false },  // Position 5
-        { 0.4f, 10000.0f, true  }   // Position 6 (program)
+    static constexpr FairchildTC fairchildPositions[6] =
+    {
+        { 0.2f,   300.0f, false },
+        { 0.2f,   800.0f, false },
+        { 0.4f,  2000.0f, false },
+        { 0.4f,  5000.0f, true  },
+        { 0.4f,  5000.0f, false },
+        { 0.4f, 10000.0f, true  }
     };
 
     void prepare(double sampleRate)
     {
         sr = sampleRate;
+        float srf = static_cast<float>(sr);
 
-        // Reset all state
         resetState();
 
-        // SSL 30Hz sidechain HPF
-        calcSSLSidechainHPF();
+        // Pre-compute fixed LA-2A coefficients
+        la2aFastDecayCoeff   = AnalogMath::msToCoeff(
+            40.0f, srf);
+        la2aFixedAttackCoeff = AnalogMath::msToCoeff(
+            10.0f, srf);
 
-        // API Thrust 150Hz sidechain HPF
+        // LA-2A charge coefficient bounds for lerp
+        la2aChargeCoeffFast = AnalogMath::msToCoeff(
+            10.0f, srf);
+        la2aChargeCoeffSlow = AnalogMath::msToCoeff(
+            20.0f, srf);
+
+        calcSSLSidechainHPF();
         calcThrustHPF(150.0f);
     }
 
-    // CRITICAL FIX - setModel resets state
-    // Prevents model contamination during live switching
     void setModel(int m)
     {
         Model newModel = static_cast<Model>(m);
@@ -60,18 +67,35 @@ public:
         }
     }
 
-    void setThreshold(float t) { threshold = t; }
-    void setRatio    (float r) { ratio = r; }
-    void setAttack   (float a) { attackMs = a; }
-    void setRelease  (float r) { releaseMs = r; }
-    void setMix      (float m) { mix = m; }
-    void setKnee     (float k) { kneeDb = k; }
+    void setThreshold  (float t) { threshold = t; }
+    void setRatio      (float r) { ratio     = r; }
+    void setAttack     (float a) { attackMs  = a; }
+    void setRelease    (float r) { releaseMs = r; }
+    void setKnee       (float k) { kneeDb    = k; }
+    void setFairchildTC(int tc)
+    {
+        fairchildPosition = juce::jlimit(0, 5, tc);
+    }
 
+    // Extra model controls
+    void setAllButtonsIn (bool b) { allButtonsIn  = b; }
+    void setThrustOn     (bool b) { thrustOn      = b; }
+    void setFeedbackMode (bool b) { feedbackMode  = b; }
+    void setLa2aLimit    (bool b) { la2aLimit     = b; }
+
+    // Smoothed parameters passed by reference
     void setMakeupSmoothed(
         juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>& smoother)
+            juce::ValueSmoothingTypes::Linear>& s)
     {
-        makeupSmootherPtr = &smoother;
+        makeupSmootherPtr = &s;
+    }
+
+    void setMixSmoothed(
+        juce::SmoothedValue<float,
+            juce::ValueSmoothingTypes::Linear>& s)
+    {
+        mixSmootherPtr = &s;
     }
 
     float getGainReduction() const
@@ -83,16 +107,29 @@ public:
     {
         int numChannels = buffer.getNumChannels();
         int numSamples  = buffer.getNumSamples();
+        float srf       = static_cast<float>(sr);
 
-        // CRITICAL FIX - compute coefficients ONCE per block
-        // Not per sample - exp() is expensive
-        float attackCoeff  = calculateCoeff(attackMs);
-        float releaseCoeff = calculateCoeff(releaseMs);
+        // Time constants once per block
+        float attackCoeff  = AnalogMath::msToCoeff(
+            attackMs, srf);
+        float releaseCoeff = AnalogMath::msToCoeff(
+            releaseMs, srf);
+
+        // LA-2A slow decay once per block
+        float slowMs = std::min(
+            500.0f + compressionDuration * 2000.0f,
+            5000.0f);
+        float la2aSlowDecayCoeff = AnalogMath::msToCoeff(
+            slowMs, srf);
 
         for (int i = 0; i < numSamples; i++)
         {
+            // Smoothed makeup and mix per sample
             float makeup = (makeupSmootherPtr != nullptr)
                 ? makeupSmootherPtr->getNextValue()
+                : 1.0f;
+            float mix = (mixSmootherPtr != nullptr)
+                ? mixSmootherPtr->getNextValue()
                 : 1.0f;
 
             float gainReductionDb = 0.0f;
@@ -101,26 +138,21 @@ public:
             {
                 case Model::SSL_BUS:
                 {
-                    // SSL uses RMS detection and summed L+R
-                    // not peak max(L,R)
+                    // RMS detection summed L+R
                     float sumSq = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
                     {
                         float s = buffer.getSample(ch, i);
-                        // Apply SSL 30Hz sidechain HPF
                         s = applySSLSidechainHPF(s, ch);
                         sumSq += s * s;
                     }
-                    // RMS of summed channels
-                    float rms = std::sqrt(
-                        sumSq / static_cast<float>(
+                    float rms = std::sqrt(sumSq
+                        / static_cast<float>(
                             std::max(numChannels, 1)));
-                    // Update RMS accumulator (~1ms window)
-                    float rmsCoeff = 1.0f
-                        - 1.0f / (0.001f
-                        * static_cast<float>(sr));
-                    rmsCoeff = juce::jlimit(0.0f, 0.999f,
-                        rmsCoeff);
+
+                    float W = 0.001f * srf;
+                    float rmsCoeff = juce::jlimit(
+                        0.0f, 0.999f, (W - 1.0f) / W);
                     sslRmsState = rmsCoeff * sslRmsState
                                 + (1.0f - rmsCoeff) * rms;
 
@@ -137,70 +169,63 @@ public:
 
                 case Model::FAIRCHILD:
                 {
-                    float sidechain = 0.0f;
+                    float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                    {
-                        float s = std::abs(
-                            buffer.getSample(ch, i));
-                        sidechain = std::max(sidechain, s);
-                    }
-                    float sidechainDb =
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb =
                         juce::Decibels::gainToDecibels(
-                            sidechain, -96.0f);
-                    gainReductionDb = calcFairchild(
-                        sidechainDb, sidechain);
+                            sc, -96.0f);
+                    gainReductionDb = calcFairchild(scDb);
                     break;
                 }
 
                 case Model::LA2A:
                 {
-                    float sidechain = 0.0f;
+                    float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                    {
-                        float s = std::abs(
-                            buffer.getSample(ch, i));
-                        sidechain = std::max(sidechain, s);
-                    }
-                    float sidechainDb =
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb =
                         juce::Decibels::gainToDecibels(
-                            sidechain, -96.0f);
+                            sc, -96.0f);
                     gainReductionDb = calcLA2A(
-                        sidechainDb, sidechain);
+                        scDb, sc, la2aSlowDecayCoeff);
                     break;
                 }
 
                 case Model::FET_1176:
                 {
-                    float sidechain = 0.0f;
+                    float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                    {
-                        float s = std::abs(
-                            buffer.getSample(ch, i));
-                        sidechain = std::max(sidechain, s);
-                    }
-                    float sidechainDb =
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb =
                         juce::Decibels::gainToDecibels(
-                            sidechain, -96.0f);
-                    gainReductionDb = calcFET1176(
-                        sidechainDb,
-                        attackCoeff,
-                        releaseCoeff);
+                            sc, -96.0f);
+                    gainReductionDb = calcFET1176(scDb);
                     break;
                 }
 
                 case Model::API_2500:
                 {
-                    float sidechain = 0.0f;
+                    float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+
+                    // Feedback mode uses previous output
+                    if (feedbackMode)
                     {
-                        float s = std::abs(
-                            buffer.getSample(ch, i));
-                        sidechain = std::max(sidechain, s);
+                        float fbSc = 0.0f;
+                        for (int ch = 0; ch < numChannels; ch++)
+                            fbSc = std::max(fbSc,
+                                std::abs(prevOutput[ch]));
+                        sc = fbSc;
                     }
+
                     gainReductionDb = calcAPI2500(
-                        sidechain,
-                        attackCoeff,
-                        releaseCoeff);
+                        sc, releaseCoeff);
                     break;
                 }
             }
@@ -222,6 +247,14 @@ public:
 
                 buffer.setSample(ch, i, output);
             }
+
+            // Store output for API feedback topology
+            if (model == Model::API_2500 && feedbackMode)
+            {
+                for (int ch = 0; ch < numChannels; ch++)
+                    prevOutput[ch] =
+                        buffer.getSample(ch, i);
+            }
         }
     }
 
@@ -232,8 +265,14 @@ private:
     float  ratio     = 4.0f;
     float  attackMs  = 10.0f;
     float  releaseMs = 100.0f;
-    float  mix       = 1.0f;
     float  kneeDb    = 6.0f;
+    int    fairchildPosition = 0;
+
+    // Extra model controls
+    bool allButtonsIn  = false;
+    bool thrustOn      = true;
+    bool feedbackMode  = false;
+    bool la2aLimit     = false;
 
     // Single stereo-linked envelope
     float envelope = 0.0f;
@@ -242,62 +281,72 @@ private:
     float optoFast = 0.0f;
     float optoSlow = 0.0f;
 
-    // Fairchild state
-    float fairchildControl = 0.0f;
-
     // SSL state
-    float sslRmsState            = 0.0f;
-    float compressionActiveMs    = 0.0f;
+    float sslRmsState         = 0.0f;
+    float compressionActiveMs = 0.0f;
 
     // LA-2A photon memory
     float compressionDuration = 0.0f;
 
-    // SSL 30Hz sidechain HPF state
+    // Pre-computed fixed LA-2A coefficients
+    float la2aFastDecayCoeff   = 0.0f;
+    float la2aFixedAttackCoeff = 0.0f;
+    float la2aChargeCoeffFast  = 0.0f;
+    float la2aChargeCoeffSlow  = 0.0f;
+
+    // API feedback mode state
+    float prevOutput[2] = { 0.0f, 0.0f };
+
+    // SSL 30Hz sidechain HPF state (per channel)
     double sslHpfB0 = 1.0, sslHpfB1 = 0.0;
     double sslHpfA1 = 0.0;
     double sslHpfX1[2] = { 0.0, 0.0 };
     double sslHpfY1[2] = { 0.0, 0.0 };
 
-    // API Thrust HPF state
+    // API Thrust HPF state (mono by design)
     double thrustB0 = 1.0, thrustB1 = 0.0;
     double thrustB2 = 0.0, thrustA1 = 0.0;
     double thrustA2 = 0.0;
     double thrustX1 = 0.0, thrustX2 = 0.0;
     double thrustY1 = 0.0, thrustY2 = 0.0;
 
+    // Smoothed parameter pointers
     juce::SmoothedValue<float,
         juce::ValueSmoothingTypes::Linear>*
         makeupSmootherPtr = nullptr;
 
+    juce::SmoothedValue<float,
+        juce::ValueSmoothingTypes::Linear>*
+        mixSmootherPtr = nullptr;
+
     std::atomic<float> currentGainReductionDb{ 0.0f };
 
-    // CRITICAL FIX - reset all model state on switch
+    //──────────────────────────────────────────────
+    // RESET STATE
+    //──────────────────────────────────────────────
     void resetState()
     {
-        envelope          = 0.0f;
-        optoFast          = 0.0f;
-        optoSlow          = 0.0f;
-        fairchildControl  = 0.0f;
-        sslRmsState       = 0.0f;
+        envelope            = 0.0f;
+        optoFast            = 0.0f;
+        optoSlow            = 0.0f;
+        sslRmsState         = 0.0f;
         compressionActiveMs = 0.0f;
         compressionDuration = 0.0f;
+        prevOutput[0]       = 0.0f;
+        prevOutput[1]       = 0.0f;
 
-        // Reset HPF states
         for (int ch = 0; ch < 2; ch++)
         {
             sslHpfX1[ch] = 0.0;
             sslHpfY1[ch] = 0.0;
         }
-        thrustX1 = thrustX2 = thrustY1 = thrustY2 = 0.0;
+        thrustX1 = thrustX2 = 0.0;
+        thrustY1 = thrustY2 = 0.0;
     }
 
-    float calculateCoeff(float timeMs)
-    {
-        if (timeMs <= 0.0f) return 0.0f;
-        return std::exp(-1.0f /
-            (static_cast<float>(sr) * timeMs * 0.001f));
-    }
-
+    //──────────────────────────────────────────────
+    // GAIN REDUCTION COMPUTATION
+    //──────────────────────────────────────────────
     float computeGainReduction(float inputDb)
     {
         float halfKnee  = kneeDb * 0.5f;
@@ -315,15 +364,18 @@ private:
         return -(overshoot * (1.0f - 1.0f / ratio));
     }
 
-    // SSL 30Hz 1-pole HPF on sidechain
+    //──────────────────────────────────────────────
+    // SSL 30Hz SIDECHAIN HPF
+    //──────────────────────────────────────────────
     void calcSSLSidechainHPF()
     {
-        double wc = 2.0 * juce::MathConstants<double>::pi
+        double wc = 2.0
+                  * juce::MathConstants<double>::pi
                   * 30.0 / sr;
         double k  = std::tan(wc / 2.0);
-        sslHpfB0 =  1.0 / (1.0 + k);
-        sslHpfB1 = -sslHpfB0;
-        sslHpfA1 = (k - 1.0) / (k + 1.0);
+        sslHpfB0  =  1.0 / (1.0 + k);
+        sslHpfB1  = -sslHpfB0;
+        sslHpfA1  = (k - 1.0) / (k + 1.0);
     }
 
     float applySSLSidechainHPF(float x, int ch)
@@ -336,40 +388,30 @@ private:
         return static_cast<float>(y);
     }
 
-    // SSL BUS - VCA with RMS detection and auto-release
+    //──────────────────────────────────────────────
+    // SSL BUS COMPRESSOR
+    // RMS detection, auto-release state machine
+    //──────────────────────────────────────────────
     float calcSSL(float sidechainDb,
                   float attackCoeff,
                   float releaseCoeff)
     {
         float targetGr = computeGainReduction(sidechainDb);
 
-        // CRITICAL FIX - authentic SSL auto-release
-        // State machine not continuous formula
-        // Two capacitors switching at 160ms
+        // Auto-release state machine
+        // Two capacitors switch at 160ms threshold
         if (targetGr < 0.0f)
-        {
             compressionActiveMs +=
                 1000.0f / static_cast<float>(sr);
-        }
         else
-        {
             compressionActiveMs = 0.0f;
-        }
 
-        float releaseToUse;
-        if (compressionActiveMs > 160.0f)
-        {
-            // Fast cap takes over after 160ms continuous
-            // Typical fast cap time ~40ms
-            releaseToUse = std::min(releaseMs, 40.0f);
-        }
-        else
-        {
-            releaseToUse = releaseMs;
-        }
+        float releaseToUse = (compressionActiveMs > 160.0f)
+            ? std::min(releaseMs, 40.0f)
+            : releaseMs;
 
-        float adaptiveRelease = calculateCoeff(
-            releaseToUse);
+        float adaptiveRelease = AnalogMath::msToCoeff(
+            releaseToUse, static_cast<float>(sr));
 
         if (targetGr < envelope)
             envelope = attackCoeff  * envelope
@@ -381,36 +423,31 @@ private:
         return envelope;
     }
 
-    // FAIRCHILD 670 - Vari-mu tube
-    // CRITICAL FIX - 6-position time constants
-    // Attack clamped to authentic 0.2-0.4ms range
-    float calcFairchild(float sidechainDb,
-                        float sidechain)
+    //──────────────────────────────────────────────
+    // FAIRCHILD 670
+    // 6-position time constants from TC selector
+    //──────────────────────────────────────────────
+    float calcFairchild(float sidechainDb)
     {
-        // Map user knob to 6-position selector
-        // attackMs range 0.1-100 maps to positions 1-6
-        int position = static_cast<int>(
-            (attackMs / 100.0f) * 5.0f);
-        position = juce::jlimit(0, 5, position);
+        float srf = static_cast<float>(sr);
 
-        const FairchildTC& tc = fairchildPositions[position];
+        const FairchildTC& tc =
+            fairchildPositions[fairchildPosition];
 
-        float aCoeff = calculateCoeff(tc.attackMs);
+        float aCoeff = AnalogMath::msToCoeff(
+            tc.attackMs, srf);
 
         float releaseToUse = tc.releaseMs;
         if (tc.programDependent)
         {
-            // Program dependent: release gets slower
-            // with deeper or longer compression
             float grDepth = std::abs(envelope);
-            releaseToUse = tc.releaseMs
-                         + grDepth * 1000.0f;
-            releaseToUse = std::min(releaseToUse,
-                                    10000.0f);
+            releaseToUse  = std::min(
+                tc.releaseMs + grDepth * 1000.0f,
+                10000.0f);
         }
 
-        float rCoeff = calculateCoeff(releaseToUse);
-
+        float rCoeff   = AnalogMath::msToCoeff(
+            releaseToUse, srf);
         float targetGr = computeGainReduction(sidechainDb);
 
         if (targetGr < envelope)
@@ -423,47 +460,47 @@ private:
         return envelope;
     }
 
-    // LA-2A - Optical with dual opto cell physics
-    // CRITICAL FIX - two separate opto components
-    // Fast phosphor decay + slow CdS photon memory
-    float calcLA2A(float sidechainDb, float sidechain)
+    //──────────────────────────────────────────────
+    // LA-2A OPTICAL
+    // Dual opto cell, fixed attack, photon memory
+    // la2aLimit controls compress (3:1) vs limit (10:1)
+    //──────────────────────────────────────────────
+    float calcLA2A(float sidechainDb,
+                   float sidechain,
+                   float slowDecayCoeff)
     {
-        // Level-dependent charge time
-        // Higher levels charge faster (opto physics)
-        float chargeMs = 20.0f
-            - (sidechainDb + 60.0f) / 60.0f * 10.0f;
-        chargeMs = juce::jlimit(10.0f, 20.0f, chargeMs);
-        float chargeCoeff = calculateCoeff(chargeMs);
+        // Temporarily set ratio based on mode
+        float savedRatio = ratio;
+        ratio = la2aLimit ? 10.0f : 3.0f;
 
-        // Fast component - phosphor decay (~40ms)
-        float fastDecay = calculateCoeff(40.0f);
-        float slowDecay = calculateCoeff(
-            500.0f + compressionDuration * 2000.0f);
-        slowDecay = calculateCoeff(
-            std::min(500.0f
-                   + compressionDuration * 2000.0f,
-                     5000.0f));
+        // Lerp charge coefficient from pre-computed bounds
+        // Eliminates per-sample exp() call
+        float norm = juce::jlimit(0.0f, 1.0f,
+            (sidechainDb + 60.0f) / 60.0f);
+        float chargeCoeff = la2aChargeCoeffSlow
+            + norm * (la2aChargeCoeffFast
+                    - la2aChargeCoeffSlow);
 
-        // Charge both components toward target
+        // Dual opto cell
         if (sidechain > optoFast)
             optoFast = chargeCoeff * optoFast
                      + (1.0f - chargeCoeff) * sidechain;
         else
-            optoFast = fastDecay * optoFast
-                     + (1.0f - fastDecay) * sidechain;
+            optoFast = la2aFastDecayCoeff * optoFast
+                     + (1.0f - la2aFastDecayCoeff)
+                     * sidechain;
 
         if (sidechain > optoSlow)
             optoSlow = chargeCoeff * optoSlow
                      + (1.0f - chargeCoeff) * sidechain;
         else
-            optoSlow = slowDecay * optoSlow
-                     + (1.0f - slowDecay) * sidechain;
+            optoSlow = slowDecayCoeff * optoSlow
+                     + (1.0f - slowDecayCoeff) * sidechain;
 
-        // Blend fast and slow components
         float optoState = 0.6f * optoFast
                         + 0.4f * optoSlow;
 
-        // CdS photon memory - tracks compression duration
+        // CdS photon memory
         if (std::abs(envelope) > 1.0f)
             compressionDuration +=
                 1.0f / static_cast<float>(sr);
@@ -477,52 +514,76 @@ private:
                 optoState, -96.0f);
         float targetGr = computeGainReduction(optoDb);
 
-        // Fixed attack - no user control on real LA-2A
-        float fixedAttack = calculateCoeff(10.0f);
-
-        // Two-stage release from opto state
+        // Release stage selection
         float rCoeff = (std::abs(envelope) > 6.0f)
-            ? slowDecay : fastDecay;
+            ? slowDecayCoeff
+            : la2aFastDecayCoeff;
 
+        // Fixed attack - no user control on LA-2A
         if (targetGr < envelope)
-            envelope = fixedAttack * envelope
-                     + (1.0f - fixedAttack) * targetGr;
+            envelope = la2aFixedAttackCoeff * envelope
+                     + (1.0f - la2aFixedAttackCoeff)
+                     * targetGr;
         else
             envelope = rCoeff * envelope
                      + (1.0f - rCoeff) * targetGr;
 
+        // Restore original ratio
+        ratio = savedRatio;
+
         return envelope;
     }
 
-    // 1176 FET - Fastest attack
-    // CRITICAL FIX - dead code removed
-    // (void) lines were after return statement
-    float calcFET1176(float sidechainDb,
-                      float attackCoeff,
-                      float releaseCoeff)
+    //──────────────────────────────────────────────
+    // 1176 FET
+    // Clean signature - computes own timing
+    // Supports all-buttons-in mode
+    //──────────────────────────────────────────────
+    float calcFET1176(float sidechainDb)
     {
-        float targetGr = computeGainReduction(sidechainDb);
+        float srf = static_cast<float>(sr);
 
-        // Map user attack (0.1-100ms) to 1176 range
-        // (0.02ms to 0.8ms) logarithmically
-        float normalizedAttack =
+        float targetGr;
+
+        if (allButtonsIn)
+        {
+            // All-buttons-in mode
+            // Ratio evolves with GR depth
+            // Gets harder as compression increases
+            float grDepth    = std::abs(envelope);
+            float allInRatio = 12.0f + grDepth * 0.8f;
+            float savedRatio = ratio;
+            float savedKnee  = kneeDb;
+
+            ratio  = allInRatio;
+            kneeDb = 12.0f;
+            targetGr = computeGainReduction(sidechainDb);
+
+            ratio  = savedRatio;
+            kneeDb = savedKnee;
+        }
+        else
+        {
+            targetGr = computeGainReduction(sidechainDb);
+        }
+
+        // Map user attack to authentic 1176 range
+        // 0.02ms to 0.8ms logarithmically
+        float normAttack =
             (attackMs - 0.1f) / 99.9f;
         float mappedAttack = 0.02f
-            * std::pow(40.0f, normalizedAttack);
-        float fetAttack = calculateCoeff(mappedAttack);
+            * std::pow(40.0f, normAttack);
+        float fetAttack = AnalogMath::msToCoeff(
+            mappedAttack, srf);
 
-        // Map user release (10-2000ms) to 1176 range
-        // (50ms to 1100ms) logarithmically
-        float normalizedRelease =
+        // Map user release to authentic 1176 range
+        // 50ms to 1100ms logarithmically
+        float normRelease =
             (releaseMs - 10.0f) / 1990.0f;
         float mappedRelease = 50.0f
-            * std::pow(22.0f, normalizedRelease);
-        float fetRelease = calculateCoeff(mappedRelease);
-
-        // CRITICAL FIX - (void) suppressions moved
-        // before any usage, not after return
-        (void)attackCoeff;
-        (void)releaseCoeff;
+            * std::pow(22.0f, normRelease);
+        float fetRelease = AnalogMath::msToCoeff(
+            mappedRelease, srf);
 
         if (targetGr < envelope)
             envelope = fetAttack  * envelope
@@ -534,22 +595,29 @@ private:
         return envelope;
     }
 
-    // API 2500 - VCA with Thrust sidechain HPF
+    //──────────────────────────────────────────────
+    // API 2500
+    // Clean signature - no dead parameters
+    // Thrust toggleable, feedback mode supported
+    //──────────────────────────────────────────────
     float calcAPI2500(float rawSidechain,
-                      float attackCoeff,
                       float releaseCoeff)
     {
-        // Apply Thrust HPF to sidechain
-        float filtered = applyThrustHPF(rawSidechain);
+        float srf = static_cast<float>(sr);
+
+        // Apply Thrust HPF only when enabled
+        float sidechain = thrustOn
+            ? applyThrustHPF(rawSidechain)
+            : rawSidechain;
 
         float sidechainDb =
             juce::Decibels::gainToDecibels(
-                std::abs(filtered), -96.0f);
+                std::abs(sidechain), -96.0f);
 
         float targetGr = computeGainReduction(sidechainDb);
 
-        float apiAttack = calculateCoeff(
-            attackMs * 0.8f);
+        float apiAttack = AnalogMath::msToCoeff(
+            attackMs * 0.8f, srf);
 
         if (targetGr < envelope)
             envelope = apiAttack  * envelope
@@ -561,10 +629,15 @@ private:
         return envelope;
     }
 
+    //──────────────────────────────────────────────
+    // API THRUST HPF
+    // 2nd order Butterworth at 150Hz
+    //──────────────────────────────────────────────
     void calcThrustHPF(float freq)
     {
-        double w0 = 2.0 * juce::MathConstants<double>::pi
-                  * freq / sr;
+        double w0    = 2.0
+                     * juce::MathConstants<double>::pi
+                     * freq / sr;
         double cosw0 = std::cos(w0);
         double sinw0 = std::sin(w0);
         double alpha = sinw0 / (2.0 * 0.707);
@@ -576,10 +649,8 @@ private:
         double a1 = -2.0 * cosw0;
         double a2 =  1.0 - alpha;
 
-        thrustB0 = b0 / a0;
-        thrustB1 = b1 / a0;
-        thrustB2 = b2 / a0;
-        thrustA1 = a1 / a0;
+        thrustB0 = b0 / a0; thrustB1 = b1 / a0;
+        thrustB2 = b2 / a0; thrustA1 = a1 / a0;
         thrustA2 = a2 / a0;
     }
 
@@ -590,26 +661,34 @@ private:
                  + thrustB2 * thrustX2
                  - thrustA1 * thrustY1
                  - thrustA2 * thrustY2;
-        thrustX2 = thrustX1;
-        thrustX1 = x;
-        thrustY2 = thrustY1;
-        thrustY1 = y;
+        thrustX2 = thrustX1; thrustX1 = x;
+        thrustY2 = thrustY1; thrustY1 = y;
         return static_cast<float>(y);
     }
 
+    //──────────────────────────────────────────────
+    // MODEL COLORATION
+    //──────────────────────────────────────────────
     float applyModelColor(float x)
     {
         switch (model)
         {
             case Model::FAIRCHILD:
-                return std::tanh(x * 1.1f) / 1.08f;
+                return AnalogMath::safeTanh(x * 1.1f)
+                     / 1.08f;
 
             case Model::LA2A:
                 return x + 0.015f * x * x
                      * (x > 0.0f ? 1.0f : -1.0f);
 
             case Model::FET_1176:
-                return x + 0.02f * x * x * x;
+            {
+                float colored = x + 0.02f * x * x * x;
+                // All-buttons-in adds extra saturation
+                if (allButtonsIn)
+                    colored += 0.06f * x * x * x;
+                return colored;
+            }
 
             case Model::SSL_BUS:
             case Model::API_2500:

@@ -25,12 +25,21 @@ target_sources(ModulatedStrip PRIVATE
     Source/PluginEditor.cpp
 )
 
+# Header files (for IDE visibility)
+target_sources(ModulatedStrip PRIVATE
+    Source/PluginProcessor.h
+    Source/PluginEditor.h
+    Source/AnalogMath.h
+    Source/SaturationProcessor.h
+    Source/CompressorProcessor.h
+    Source/EQProcessor.h
+)
+
 # JUCE settings
 target_compile_definitions(ModulatedStrip PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
 # Link JUCE modules we need
@@ -42,5 +51,5 @@ target_link_libraries(ModulatedStrip PRIVATE
     juce::juce_recommended_warning_flags
 )
 
-# THIS IS THE NEW LINE - generates JuceHeader.h
+# Generate JuceHeader.h
 juce_generate_juce_header(ModulatedStrip)

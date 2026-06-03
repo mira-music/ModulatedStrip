@@ -267,22 +267,16 @@ public:
 private:
     ModulatedStripProcessor& processor;
 
-    //──────────────────────────────────────────────
-    // INPUT SECTION
-    //──────────────────────────────────────────────
+    // INPUT
     ModelKnob inputGainKnob;
 
-    //──────────────────────────────────────────────
-    // SATURATION SECTION
-    //──────────────────────────────────────────────
+    // SATURATION
     SteppedCombo satModelSelector;
     ModelKnob    driveKnob;
     ModelKnob    satMixKnob;
     BypassButton satBypassBtn { "ON" };
 
-    //──────────────────────────────────────────────
-    // COMPRESSOR SECTION
-    //──────────────────────────────────────────────
+    // COMPRESSOR
     SteppedCombo compModelSelector;
     ModelKnob    thresholdKnob;
     ModelKnob    ratioKnob;
@@ -293,18 +287,15 @@ private:
     ModelKnob    kneeKnob;
     BypassButton compBypassBtn { "ON" };
 
-    // Model-specific compressor controls
-    SteppedCombo fairchildTCSelector;  // Time constant 1-6
-    BypassButton allInBtn     { "ALL IN"  };
-    BypassButton thrustBtn    { "THRUST"  };
-    BypassButton topologyBtn  { "FWD"     };
-    BypassButton la2aLimitBtn { "LIMIT"   };
+    SteppedCombo fairchildTCSelector;
+    BypassButton allInBtn      { "ALL IN" };
+    BypassButton thrustBtn     { "THRUST" };
+    BypassButton topologyBtn   { "FWD"    };
+    BypassButton la2aLimitBtn  { "LIMIT"  };
 
     juce::Label compModelHintLabel;
 
-    //──────────────────────────────────────────────
-    // EQ SECTION
-    //──────────────────────────────────────────────
+    // EQ
     SteppedCombo eqModelSelector;
     ModelKnob    eqLowGainKnob;
     ModelKnob    eqLowFreqKnob;
@@ -314,19 +305,15 @@ private:
     ModelKnob    eqHighGainKnob;
     ModelKnob    eqHighFreqKnob;
     ModelKnob    eqHPFKnob;
-    BypassButton eqBypassBtn  { "ON"      };
-    BypassButton eqPreCompBtn { "EQ PRE"  };
+    BypassButton eqBypassBtn  { "ON"     };
+    BypassButton eqPreCompBtn { "EQ PRE" };
 
     juce::Label eqModelHintLabel;
 
-    //──────────────────────────────────────────────
-    // OUTPUT SECTION
-    //──────────────────────────────────────────────
+    // OUTPUT
     ModelKnob outputGainKnob;
 
-    //──────────────────────────────────────────────
     // METERS
-    //──────────────────────────────────────────────
     VUMeter inputMeter;
     VUMeter outputMeter;
     VUMeter grMeter;
@@ -334,9 +321,7 @@ private:
     juce::Label outputMeterLabel;
     juce::Label grMeterLabel;
 
-    //──────────────────────────────────────────────
-    // PARAMETER ATTACHMENTS
-    //──────────────────────────────────────────────
+    // ATTACHMENTS
     using SliderAtt = juce::AudioProcessorValueTreeState
         ::SliderAttachment;
     using ComboAtt  = juce::AudioProcessorValueTreeState
@@ -359,6 +344,12 @@ private:
     std::unique_ptr<SliderAtt> kneeAtt;
     std::unique_ptr<ComboAtt>  compModelAtt;
     std::unique_ptr<ButtonAtt> compBypassAtt;
+    std::unique_ptr<ComboAtt>  fairchildTCAtt;
+	
+	std::unique_ptr<ButtonAtt> allInAtt;
+    std::unique_ptr<ButtonAtt> thrustAtt;
+    std::unique_ptr<ButtonAtt> topologyAtt;
+    std::unique_ptr<ButtonAtt> la2aLimitAtt;
 
     std::unique_ptr<SliderAtt> eqLowGainAtt;
     std::unique_ptr<SliderAtt> eqLowFreqAtt;
@@ -374,9 +365,6 @@ private:
 
     std::unique_ptr<SliderAtt> outputGainAtt;
 
-    //──────────────────────────────────────────────
-    // UI STATE MACHINE
-    //──────────────────────────────────────────────
     void updateCompressorUI(int modelIndex);
     void updateEQUI(int modelIndex);
     void setupCombo(SteppedCombo& box,
