@@ -8,7 +8,8 @@ ModulatedStripProcessor::ModulatedStripProcessor()
                 juce::AudioChannelSet::stereo(), true)
             .withOutput("Output",
                 juce::AudioChannelSet::stereo(), true)),
-      apvts(*this, nullptr, "Parameters", createParameters())
+      apvts(*this, nullptr, "Parameters", createParameters()),
+      presetManager(apvts)
 {
     // Cache all parameter pointers once
     // No string lookups on audio thread

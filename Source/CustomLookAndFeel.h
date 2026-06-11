@@ -1,25 +1,249 @@
 #pragma once
 #include <JuceHeader.h>
 #include <cmath>
+#include "TextureGenerator.h"
+
+//==============================================================================
+// KNOB VISUAL STYLE
+// Set on slider via properties
+// Read by AnalogLookAndFeel::drawRotarySlider
+//==============================================================================
+enum class KnobVisualStyle
+{
+    DarkMetal   = 0,
+    VintageDome = 1,
+    SSLCompact  = 2,
+    APISkirt    = 3
+};
+
+inline void setKnobVisualStyle(
+    juce::Slider& slider,
+    KnobVisualStyle style)
+{
+    slider.getProperties().set("knobStyle",
+        static_cast<int>(style));
+}
+
+//==============================================================================
+// PANEL TEXTURES
+// All texture access guards against null TextureCache
+// during shutdown period
+//==============================================================================
+namespace PanelTextures
+{
+    inline void drawBrushedMetal(
+        juce::Graphics& g,
+        juce::Rectangle<float> area,
+        juce::Colour tintColor,
+        float scratchIntensity = 0.03f)
+    {
+        // Base tint fill
+        g.setColour(tintColor);
+        g.fillRoundedRectangle(area, 4.0f);
+
+        // Texture overlay
+        auto* tex = TextureCache::getInstance();
+        if (tex != nullptr)
+        {
+            float brightness = tintColor.getBrightness();
+            juce::Image* metalTex =
+                (brightness > 0.5f)
+                ? &tex->brushedMetalSilver
+                : (brightness > 0.25f)
+                    ? &tex->brushedMetalGrey
+                    : &tex->brushedMetalDark;
+
+            if (metalTex != nullptr
+             && !metalTex->isNull())
+            {
+                g.setOpacity(0.35f);
+                g.drawImage(*metalTex,
+                    static_cast<int>(area.getX()),
+                    static_cast<int>(area.getY()),
+                    static_cast<int>(area.getWidth()),
+                    static_cast<int>(area.getHeight()),
+                    0, 0,
+                    metalTex->getWidth(),
+                    metalTex->getHeight());
+                g.setOpacity(1.0f);
+            }
+
+            if (!tex->scratchOverlay.isNull())
+            {
+                g.setOpacity(scratchIntensity * 2.5f);
+                g.drawImage(tex->scratchOverlay,
+                    static_cast<int>(area.getX()),
+                    static_cast<int>(area.getY()),
+                    static_cast<int>(area.getWidth()),
+                    static_cast<int>(area.getHeight()),
+                    0, 0,
+                    tex->scratchOverlay.getWidth(),
+                    tex->scratchOverlay.getHeight());
+                g.setOpacity(1.0f);
+            }
+        }
+
+        // Top bevel - catches overhead light
+        g.setColour(tintColor.brighter(0.08f));
+        g.drawHorizontalLine(
+            static_cast<int>(area.getY()) + 1,
+            area.getX() + 3,
+            area.getRight() - 3);
+
+        // Bottom shadow
+        g.setColour(tintColor.darker(0.15f));
+        g.drawHorizontalLine(
+            static_cast<int>(area.getBottom()) - 2,
+            area.getX() + 3,
+            area.getRight() - 3);
+
+        // Border
+        g.setColour(juce::Colour(0xFF2A2A2A));
+        g.drawRoundedRectangle(area, 4.0f, 1.0f);
+    }
+
+    inline void drawWrinkleFinish(
+        juce::Graphics& g,
+        juce::Rectangle<float> area,
+        juce::Colour baseColor)
+    {
+        g.setColour(baseColor);
+        g.fillRoundedRectangle(area, 4.0f);
+
+        auto* tex = TextureCache::getInstance();
+        if (tex != nullptr
+         && !tex->wrinkleFinish.isNull())
+        {
+            g.setOpacity(0.55f);
+            g.drawImage(tex->wrinkleFinish,
+                static_cast<int>(area.getX()),
+                static_cast<int>(area.getY()),
+                static_cast<int>(area.getWidth()),
+                static_cast<int>(area.getHeight()),
+                0, 0,
+                tex->wrinkleFinish.getWidth(),
+                tex->wrinkleFinish.getHeight());
+            g.setOpacity(1.0f);
+        }
+
+        g.setColour(juce::Colour(0xFF2A2A2A));
+        g.drawRoundedRectangle(area, 4.0f, 1.0f);
+    }
+
+    inline void drawDust(
+        juce::Graphics& g,
+        juce::Rectangle<float> area,
+        float intensity = 0.008f)
+    {
+        auto* tex = TextureCache::getInstance();
+        if (tex == nullptr
+         || tex->dustOverlay.isNull())
+            return;
+
+        g.setOpacity(intensity * 6.0f);
+        g.drawImage(tex->dustOverlay,
+            static_cast<int>(area.getX()),
+            static_cast<int>(area.getY()),
+            static_cast<int>(area.getWidth()),
+            static_cast<int>(area.getHeight()),
+            0, 0,
+            tex->dustOverlay.getWidth(),
+            tex->dustOverlay.getHeight());
+        g.setOpacity(1.0f);
+    }
+
+    inline void drawScrewHead(
+        juce::Graphics& g,
+        float cx, float cy,
+        float rotation = 0.3f)
+    {
+        auto* tex = TextureCache::getInstance();
+        if (tex == nullptr
+         || tex->screwHead.isNull())
+            return;
+
+        int s = 12;
+        juce::Graphics::ScopedSaveState save(g);
+        juce::AffineTransform t =
+            juce::AffineTransform::rotation(
+                rotation, cx, cy);
+        g.addTransform(t);
+        g.drawImage(tex->screwHead,
+            static_cast<int>(cx - s * 0.5f),
+            static_cast<int>(cy - s * 0.5f),
+            s, s,
+            0, 0,
+            tex->screwHead.getWidth(),
+            tex->screwHead.getHeight());
+    }
+
+    inline void drawEngravedText(
+        juce::Graphics& g,
+        const juce::String& text,
+        juce::Rectangle<int> bounds,
+        juce::Justification just =
+            juce::Justification::centred)
+    {
+        g.setFont(juce::Font(
+            juce::FontOptions(10.0f)
+            .withStyle("Bold")));
+
+        // Shadow pass - depth of engraving
+        g.setColour(juce::Colour(0xFF0A0A0A));
+        g.drawText(text,
+            bounds.translated(1, 1), just);
+
+        // Gold fill pass
+        g.setColour(juce::Colour(0xFFE8C878));
+        g.drawText(text, bounds, just);
+    }
+
+    inline void drawWoodPanel(
+        juce::Graphics& g,
+        juce::Rectangle<float> area)
+    {
+        auto* tex = TextureCache::getInstance();
+
+        if (tex == nullptr
+         || tex->woodGrain.isNull())
+        {
+            // Fallback solid color
+            g.setColour(juce::Colour(0xFF3C2A18));
+            g.fillRect(area);
+            return;
+        }
+
+        g.drawImage(tex->woodGrain,
+            static_cast<int>(area.getX()),
+            static_cast<int>(area.getY()),
+            static_cast<int>(area.getWidth()),
+            static_cast<int>(area.getHeight()),
+            0, 0,
+            tex->woodGrain.getWidth(),
+            tex->woodGrain.getHeight());
+
+        // Varnish sheen
+        g.setGradientFill(juce::ColourGradient(
+            juce::Colours::white.withAlpha(0.05f),
+            area.getX(), area.getY(),
+            juce::Colours::transparentWhite,
+            area.getRight(), area.getY(),
+            false));
+        g.fillRect(area);
+    }
+}
 
 //==============================================================================
 // ANALOG NEEDLE METER
-// Physics-based VU meter with inertia and damping
-// Model-specific face plate colors
+// NO INTERNAL TIMER - eliminates timer race crash
+// Editor drives physics via advancePhysics() at 30Hz
 //==============================================================================
-class AnalogNeedleMeter : public juce::Component,
-                          public juce::Timer
+class AnalogNeedleMeter : public juce::Component
 {
 public:
-    AnalogNeedleMeter()
-    {
-        startTimerHz(60);
-    }
+    AnalogNeedleMeter() {}
 
-    ~AnalogNeedleMeter() override
-    {
-        stopTimer();
-    }
+    ~AnalogNeedleMeter() override {}
 
     void setGainReduction(float grDb)
     {
@@ -27,207 +251,209 @@ public:
             grDb / 20.0f);
     }
 
-    // Model specific face plate
-    // 0=SSL 1=Fairchild 2=LA2A 3=1176 4=API
     void setModel(int m)
     {
-        model = m;
-        repaint();
+        if (m != model)
+        {
+            model = m;
+            repaint();
+        }
     }
 
-    void timerCallback() override
+    // Called by editor timerCallback at 30Hz
+    // Only repaints when needle actually moves
+    void advancePhysics()
     {
-        // Needle physics - mass and damping
-        float force = (targetAngle - needleAngle) * 8.0f;
+        float force = (targetAngle - needleAngle)
+            * 0.15f;
         needleVelocity += force;
-        needleVelocity *= 0.65f; // damping
-        needleAngle += needleVelocity * 0.016f;
-        needleAngle = juce::jlimit(0.0f, 1.0f,
-            needleAngle);
+        needleVelocity *= 0.78f;
 
-        repaint();
+        float newAngle = juce::jlimit(0.0f, 1.0f,
+            needleAngle + needleVelocity);
+
+        if (std::abs(newAngle - needleAngle) > 0.0002f)
+        {
+            needleAngle = newAngle;
+            repaint();
+        }
     }
 
     void paint(juce::Graphics& g) override
     {
+        auto* tex = TextureCache::getInstance();
         auto bounds = getLocalBounds().toFloat();
         float w = bounds.getWidth();
         float h = bounds.getHeight();
         float cx = w * 0.5f;
-        float pivotY = h * 0.85f;
+        float pivotY = h * 0.88f;
+        float adjustY = pivotY - h * 0.12f;
 
-        // Face plate background
+        // Model specific colors
         juce::Colour faceColor;
-        juce::Colour textColor;
-        juce::Colour needleColor;
-        juce::Colour glowColor;
+        juce::Colour needleCol;
+        juce::Colour glowCol;
 
         switch (model)
         {
             case 0: // SSL
-                faceColor   = juce::Colour(0xFFF0F0F0);
-                textColor   = juce::Colour(0xFF1A1A1A);
-                needleColor = juce::Colour(0xFF1A1A1A);
-                glowColor   = juce::Colour(0x2040C040);
+                faceColor = juce::Colour(0xFFF0F0F0);
+                needleCol = juce::Colour(0xFF1A1A1A);
+                glowCol   = juce::Colour(0x2040C040);
                 break;
             case 1: // Fairchild
-                faceColor   = juce::Colour(0xFFE8D8C0);
-                textColor   = juce::Colour(0xFF2A1A0A);
-                needleColor = juce::Colour(0xFF1A1A1A);
-                glowColor   = juce::Colour(0x20C8A838);
+                faceColor = juce::Colour(0xFFE8D8C0);
+                needleCol = juce::Colour(0xFF1A1A1A);
+                glowCol   = juce::Colour(0x20C8A838);
                 break;
             case 2: // LA-2A
-                faceColor   = juce::Colour(0xFFE8E0D8);
-                textColor   = juce::Colour(0xFF2A2A2A);
-                needleColor = juce::Colour(0xFF1A1A1A);
-                glowColor   = juce::Colour(0x20808060);
+                faceColor = juce::Colour(0xFFE8E0D0);
+                needleCol = juce::Colour(0xFF1A1A1A);
+                glowCol   = juce::Colour(0x20D4900A);
                 break;
             case 3: // 1176
-                faceColor   = juce::Colour(0xFF1A1A1A);
-                textColor   = juce::Colour(0xFFD0D0D0);
-                needleColor = juce::Colour(0xFFD0D0D0);
-                glowColor   = juce::Colour(0x20606060);
+                faceColor = juce::Colour(0xFF0A0A0A);
+                needleCol = juce::Colour(0xFFD0D0D0);
+                glowCol   = juce::Colour(0x20606060);
                 break;
             case 4: // API
-                faceColor   = juce::Colour(0xFFF0F0F0);
-                textColor   = juce::Colour(0xFF1A2A3A);
-                needleColor = juce::Colour(0xFF1A1A1A);
-                glowColor   = juce::Colour(0x204488FF);
+                faceColor = juce::Colour(0xFFF0F0F0);
+                needleCol = juce::Colour(0xFF1A1A1A);
+                glowCol   = juce::Colour(0x154488FF);
                 break;
             default:
-                faceColor   = juce::Colour(0xFFE8E0D8);
-                textColor   = juce::Colour(0xFF2A2A2A);
-                needleColor = juce::Colour(0xFF1A1A1A);
-                glowColor   = juce::Colour(0x20808060);
+                faceColor = juce::Colour(0xFFE8E0D0);
+                needleCol = juce::Colour(0xFF1A1A1A);
+                glowCol   = juce::Colour(0x20808060);
                 break;
         }
 
         // Outer bezel
-        g.setColour(juce::Colour(0xFF2A2A2A));
-        g.fillRoundedRectangle(bounds, 4.0f);
-
-        // Inner bezel
-        g.setColour(juce::Colour(0xFF3A3A3A));
+        g.setColour(juce::Colour(0xFF1A1A1A));
+        g.fillRoundedRectangle(bounds, 5.0f);
+        g.setColour(juce::Colour(0xFF303030));
+        g.drawRoundedRectangle(bounds, 5.0f, 1.5f);
+        g.setColour(juce::Colour(0xFF080808));
         g.fillRoundedRectangle(
-            bounds.reduced(2.0f), 3.0f);
+            bounds.reduced(2.0f), 4.0f);
 
-        // Face plate
         auto faceRect = bounds.reduced(4.0f);
-        g.setColour(faceColor);
-        g.fillRoundedRectangle(faceRect, 2.0f);
 
-        // Subtle backlight glow
-        g.setColour(glowColor);
-        g.fillRoundedRectangle(faceRect, 2.0f);
-
-        // Scale arc
-        float arcRadius = w * 0.35f;
-        float startAngle = -2.4f;
-        float endAngle   =  0.4f;
-
-        // Draw scale markings
-        g.setColour(textColor);
-        g.setFont(juce::Font(
-            juce::FontOptions(8.0f)));
-
-        const float markAngles[] =
-            { 0.0f, 0.15f, 0.3f, 0.45f,
-              0.6f, 0.75f, 0.9f, 1.0f };
-        const char* markLabels[] =
-            { "0", "-3", "-5", "-7",
-              "-10", "-15", "-20", "" };
-
-        for (int m = 0; m < 8; m++)
+        // VU face image - model specific
+        juce::Image* faceImg = nullptr;
+        if (tex != nullptr)
         {
-            float angle = startAngle
-                + markAngles[m]
-                * (endAngle - startAngle);
-
-            float mx = cx + arcRadius
-                     * std::cos(angle);
-            float my = pivotY + arcRadius
-                     * std::sin(angle) - h * 0.15f;
-
-            // Tick mark
-            float innerR = arcRadius * 0.85f;
-            float ix = cx + innerR * std::cos(angle);
-            float iy = pivotY + innerR
-                     * std::sin(angle) - h * 0.15f;
-
-            g.setColour(textColor);
-            g.drawLine(ix, iy, mx, my, 1.0f);
-
-            // Label
-            if (markLabels[m][0] != '\0')
+            switch (model)
             {
-                g.drawText(markLabels[m],
-                    static_cast<int>(mx - 12),
-                    static_cast<int>(my - 14),
-                    24, 12,
-                    juce::Justification::centred);
+                case 3:
+                    faceImg = &tex->vuFaceBlack;
+                    break;
+                case 0:
+                case 4:
+                    faceImg = &tex->vuFaceWhite;
+                    break;
+                default:
+                    faceImg = &tex->vuFaceCream;
+                    break;
             }
         }
 
-        // Red zone above -3dB
-        float redStart = startAngle
-            + 0.15f * (endAngle - startAngle);
-        g.setColour(juce::Colour(0x40C83030));
+        if (faceImg != nullptr
+         && !faceImg->isNull())
+        {
+            g.drawImage(*faceImg,
+                static_cast<int>(faceRect.getX()),
+                static_cast<int>(faceRect.getY()),
+                static_cast<int>(faceRect.getWidth()),
+                static_cast<int>(faceRect.getHeight()),
+                0, 0,
+                faceImg->getWidth(),
+                faceImg->getHeight());
+        }
+        else
+        {
+            g.setColour(faceColor);
+            g.fillRoundedRectangle(faceRect, 3.0f);
+        }
 
-        juce::Path redArc;
-        redArc.addCentredArc(cx,
-            pivotY - h * 0.15f,
-            arcRadius * 0.9f,
-            arcRadius * 0.9f,
-            0.0f,
-            redStart, endAngle,
-            true);
-        g.strokePath(redArc,
-            juce::PathStrokeType(3.0f));
+        // Backlight glow
+        g.setColour(glowCol);
+        g.fillRoundedRectangle(faceRect, 3.0f);
 
         // Needle
-        float needleRotation = startAngle
-            + needleAngle * (endAngle - startAngle);
+        float startAngle = -2.35f;
+        float sweepAngle = 4.7f;
+        float needleRot  = startAngle
+            + needleAngle * sweepAngle;
+        float needleLen  = h * 0.62f;
 
-        float needleLength = arcRadius * 1.1f;
-        float nx = cx + needleLength
-                 * std::cos(needleRotation);
-        float ny = pivotY + needleLength
-                 * std::sin(needleRotation)
-                 - h * 0.15f;
+        float nx = cx + needleLen
+            * std::cos(needleRot);
+        float ny = adjustY + needleLen
+            * std::sin(needleRot);
 
-        // Needle shadow
-        g.setColour(juce::Colour(0x30000000));
-        g.drawLine(cx + 1, pivotY - h * 0.15f + 1,
-                   nx + 1, ny + 1, 2.0f);
+        // Shadow
+        g.setColour(juce::Colour(0x18000000));
+        g.drawLine(cx + 0.8f, adjustY + 0.8f,
+                   nx + 0.8f, ny + 0.8f, 2.0f);
 
-        // Needle body
-        g.setColour(needleColor);
-        g.drawLine(cx, pivotY - h * 0.15f,
-                   nx, ny, 1.5f);
+        // Tapered needle body
+        float baseW  = 1.8f;
+        float tipW   = 0.3f;
+        float perpA  = needleRot
+            + juce::MathConstants<float>::pi * 0.5f;
+        float pcosA  = std::cos(perpA);
+        float psinA  = std::sin(perpA);
 
-        // Needle pivot dot
-        g.setColour(needleColor);
-        g.fillEllipse(cx - 3, pivotY - h * 0.15f - 3,
-                      6, 6);
+        juce::Path needle;
+        needle.startNewSubPath(
+            cx    + baseW * pcosA,
+            adjustY + baseW * psinA);
+        needle.lineTo(
+            nx + tipW * pcosA,
+            ny + tipW * psinA);
+        needle.lineTo(
+            nx - tipW * pcosA,
+            ny - tipW * psinA);
+        needle.lineTo(
+            cx    - baseW * pcosA,
+            adjustY - baseW * psinA);
+        needle.closeSubPath();
 
-        // Label
-        g.setColour(textColor.withAlpha(0.6f));
-        g.setFont(juce::Font(
-            juce::FontOptions(7.0f)));
-        g.drawText("GAIN REDUCTION  dB",
-            0, static_cast<int>(h * 0.7f),
-            static_cast<int>(w), 12,
-            juce::Justification::centred);
+        g.setColour(needleCol);
+        g.fillPath(needle);
+
+        // Pivot cap
+        float pivR = 5.0f;
+        g.setColour(juce::Colour(0xFF383838));
+        g.fillEllipse(cx - pivR, adjustY - pivR,
+            pivR * 2, pivR * 2);
+        g.setColour(juce::Colour(0xFF606060));
+        g.drawEllipse(cx - pivR, adjustY - pivR,
+            pivR * 2, pivR * 2, 0.8f);
+        g.setColour(juce::Colour(0xFF505050));
+        g.fillEllipse(cx - 2, adjustY - 2, 4, 4);
 
         // Glass reflection overlay
-        g.setGradientFill(
-            juce::ColourGradient(
-                juce::Colour(0x15FFFFFF),
+        if (tex != nullptr
+         && !tex->glassReflection.isNull())
+        {
+            g.setOpacity(0.5f);
+            g.drawImage(tex->glassReflection,
+                static_cast<int>(faceRect.getX()),
+                static_cast<int>(faceRect.getY()),
+                static_cast<int>(faceRect.getWidth()),
+                static_cast<int>(faceRect.getHeight()),
                 0, 0,
-                juce::Colour(0x00FFFFFF),
-                0, h * 0.5f,
-                false));
-        g.fillRoundedRectangle(faceRect, 2.0f);
+                tex->glassReflection.getWidth(),
+                tex->glassReflection.getHeight());
+            g.setOpacity(1.0f);
+        }
+
+        // Outer glass edge
+        g.setColour(juce::Colour(0xFF404040));
+        g.drawRoundedRectangle(
+            bounds.reduced(1.0f), 4.5f, 1.0f);
     }
 
 private:
@@ -239,35 +465,31 @@ private:
 
 //==============================================================================
 // LED LADDER METER
-// Realistic LED segments with glow and phosphor decay
+// updateLevel() does NOT call repaint()
+// Editor timer calls repaint() once per tick
+// Eliminates the 120+ repaints/sec glitch
 //==============================================================================
 class LEDLadderMeter : public juce::Component
 {
 public:
-    void setLevel(float newLevel)
+    // Renamed from setLevel
+    // Does NOT call repaint() - editor timer does that
+    void updateLevel(float newLevel)
     {
-        // Peak with fast attack slow release
         if (newLevel > level)
             level = newLevel;
         else
             level = level * 0.92f + newLevel * 0.08f;
 
-        // Peak hold
         if (newLevel > peak)
         {
             peak     = newLevel;
             peakHold = 90;
         }
         else if (peakHold > 0)
-        {
             peakHold--;
-        }
         else
-        {
             peak *= 0.97f;
-        }
-
-        repaint();
     }
 
     void paint(juce::Graphics& g) override
@@ -276,108 +498,117 @@ public:
         float w = bounds.getWidth();
         float h = bounds.getHeight();
 
-        // Dark background
+        // Housing
         g.setColour(juce::Colour(0xFF080808));
         g.fillRoundedRectangle(bounds, 3.0f);
-
-        // Panel surround
-        g.setColour(juce::Colour(0xFF1A1A1A));
-        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
+        g.setColour(juce::Colour(0xFF000000)
+            .withAlpha(0.5f));
+        g.drawRoundedRectangle(
+            bounds.reduced(0.5f), 3.0f, 1.0f);
 
         float levelDb = juce::Decibels::gainToDecibels(
             level, -60.0f);
         float peakDb  = juce::Decibels::gainToDecibels(
             peak, -60.0f);
 
-        // LED positions (dB thresholds)
-        const float ledDb[] =
-            { -48, -42, -36, -30, -24,
-              -18, -15, -12, -9, -6,
-              -3, 0, 3, 6 };
+        const float ledDb[] = {
+            -54.0f, -48.0f, -42.0f, -36.0f, -30.0f,
+            -24.0f, -18.0f, -15.0f, -12.0f,  -9.0f,
+             -6.0f,  -3.0f,   0.0f,   3.0f };
         const int numLeds = 14;
 
-        float ledH    = (h - 8.0f) / numLeds;
-        float ledW    = w - 8.0f;
-        float ledGap  = 2.0f;
+        float ledH   = (h - 6.0f) / numLeds;
+        float ledW   = w - 6.0f;
+        float ledGap = 1.5f;
 
         for (int i = 0; i < numLeds; i++)
         {
-            // LED position - bottom to top
-            int ledIndex = numLeds - 1 - i;
-            float ly = 4.0f + i * ledH;
+            int   idx    = numLeds - 1 - i;
+            float ly     = 3.0f + i * ledH;
+            bool  active = levelDb >= ledDb[idx];
+            bool  isPeak = std::abs(peakDb
+                - ledDb[idx]) < 3.5f
+                && peakHold > 0
+                && !active;
 
-            // LED color based on level
-            juce::Colour ledOff;
-            juce::Colour ledOn;
+            juce::Colour ledOn, ledOff;
 
-            if (ledDb[ledIndex] >= 3)
+            if (ledDb[idx] >= 3.0f)
             {
-                ledOff = juce::Colour(0xFF1A0808);
                 ledOn  = juce::Colour(0xFFC83020);
+                ledOff = juce::Colour(0xFF180808);
             }
-            else if (ledDb[ledIndex] >= 0)
+            else if (ledDb[idx] >= -3.0f)
             {
-                ledOff = juce::Colour(0xFF1A0808);
                 ledOn  = juce::Colour(0xFFE84030);
+                ledOff = juce::Colour(0xFF180808);
             }
-            else if (ledDb[ledIndex] >= -6)
+            else if (ledDb[idx] >= -9.0f)
             {
-                ledOff = juce::Colour(0xFF181808);
-                ledOn  = juce::Colour(0xFFC8A030);
+                ledOn  = juce::Colour(0xFFB8A020);
+                ledOff = juce::Colour(0xFF141408);
             }
             else
             {
-                ledOff = juce::Colour(0xFF081808);
                 ledOn  = juce::Colour(0xFF3A8A3A);
+                ledOff = juce::Colour(0xFF081408);
             }
 
-            // Is this LED active?
-            bool active = levelDb >= ledDb[ledIndex];
-            bool isPeak = std::abs(peakDb
-                - ledDb[ledIndex]) < 3.0f
-                && peakHold > 0;
-
-            juce::Colour ledColor = active
-                ? ledOn : ledOff;
-
-            // LED body
             auto ledRect = juce::Rectangle<float>(
-                4.0f, ly, ledW, ledH - ledGap);
-            g.setColour(ledColor);
-            g.fillRoundedRectangle(ledRect, 1.5f);
+                3.0f, ly, ledW, ledH - ledGap);
 
-            // Glow effect when active
             if (active)
             {
-                g.setColour(ledOn.withAlpha(0.15f));
+                // Glow halo
+                g.setColour(ledOn.withAlpha(0.12f));
                 g.fillRoundedRectangle(
-                    ledRect.expanded(2.0f), 2.5f);
+                    ledRect.expanded(1.5f), 2.0f);
+
+                // Body gradient
+                juce::ColourGradient ledGrad(
+                    ledOn.brighter(0.2f),
+                    ledRect.getX(), ledRect.getY(),
+                    ledOn.darker(0.3f),
+                    ledRect.getX(),
+                    ledRect.getBottom(), false);
+                g.setGradientFill(ledGrad);
+                g.fillRoundedRectangle(ledRect, 1.2f);
+
+                // Dome highlight
+                juce::ColourGradient dome(
+                    juce::Colours::white
+                        .withAlpha(0.18f),
+                    ledRect.getX() + ledW * 0.2f,
+                    ledRect.getY(),
+                    juce::Colours::transparentWhite,
+                    ledRect.getX() + ledW * 0.5f,
+                    ledRect.getBottom(), false);
+                g.setGradientFill(dome);
+                g.fillRoundedRectangle(ledRect, 1.2f);
+            }
+            else
+            {
+                // Dim LED
+                g.setColour(ledOff);
+                g.fillRoundedRectangle(ledRect, 1.2f);
             }
 
             // Peak hold indicator
-            if (isPeak && !active)
+            if (isPeak)
             {
-                g.setColour(ledOn.withAlpha(0.7f));
-                g.fillRoundedRectangle(ledRect, 1.5f);
-            }
-
-            // Subtle 3D dome effect
-            if (active)
-            {
-                g.setGradientFill(
-                    juce::ColourGradient(
-                        juce::Colours::white
-                            .withAlpha(0.15f),
-                        ledRect.getX(),
-                        ledRect.getY(),
-                        juce::Colours::white
-                            .withAlpha(0.0f),
-                        ledRect.getX(),
-                        ledRect.getBottom(),
-                        false));
-                g.fillRoundedRectangle(ledRect, 1.5f);
+                g.setColour(ledOn.withAlpha(0.65f));
+                g.fillRoundedRectangle(ledRect, 1.2f);
             }
         }
+
+        // Housing highlight
+        g.setColour(juce::Colour(0xFF1A1A1A));
+        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
+        g.setColour(juce::Colour(0xFF252525));
+        g.drawHorizontalLine(
+            static_cast<int>(bounds.getY()) + 1,
+            bounds.getX() + 2,
+            bounds.getRight() - 2);
     }
 
 private:
@@ -387,85 +618,23 @@ private:
 };
 
 //==============================================================================
-// HARDWARE SCREW
-// Decorative detail
-//==============================================================================
-class HardwareScrew : public juce::Component
-{
-public:
-    void setRotation(float r)
-    {
-        rotation = r;
-        repaint();
-    }
-
-    void paint(juce::Graphics& g) override
-    {
-        auto b = getLocalBounds().toFloat().reduced(1);
-        float cx = b.getCentreX();
-        float cy = b.getCentreY();
-        float r  = b.getWidth() * 0.5f;
-
-        // Outer ring
-        g.setColour(juce::Colour(0xFF4A4A4A));
-        g.fillEllipse(b);
-
-        // Inner body
-        g.setColour(juce::Colour(0xFF5A5A5A));
-        g.fillEllipse(b.reduced(1.5f));
-
-        // Phillips cross
-        g.setColour(juce::Colour(0xFF3A3A3A));
-
-        float slotLen = r * 0.7f;
-        float angle1  = rotation;
-        float angle2  = rotation
-                      + juce::MathConstants<float>::pi
-                      * 0.5f;
-
-        g.drawLine(
-            cx + slotLen * std::cos(angle1),
-            cy + slotLen * std::sin(angle1),
-            cx - slotLen * std::cos(angle1),
-            cy - slotLen * std::sin(angle1),
-            1.2f);
-        g.drawLine(
-            cx + slotLen * std::cos(angle2),
-            cy + slotLen * std::sin(angle2),
-            cx - slotLen * std::cos(angle2),
-            cy - slotLen * std::sin(angle2),
-            1.2f);
-
-        // Highlight
-        g.setColour(juce::Colour(0x15FFFFFF));
-        g.fillEllipse(
-            cx - r * 0.3f, cy - r * 0.4f,
-            r * 0.6f, r * 0.4f);
-    }
-
-private:
-    float rotation = 0.3f;
-};
-
-//==============================================================================
-// CUSTOM LOOK AND FEEL
-// Transforms all JUCE controls to analog hardware style
+// ANALOG LOOK AND FEEL
+// Custom rendering for all JUCE controls
 //==============================================================================
 class AnalogLookAndFeel : public juce::LookAndFeel_V4
 {
 public:
     AnalogLookAndFeel()
     {
-        // Global colors
         setColour(juce::Slider::textBoxTextColourId,
-            juce::Colour(0xFFE8C878));
+            juce::Colour(0xFFE8E0D0));
         setColour(juce::Slider::textBoxBackgroundColourId,
-            juce::Colour(0xFF0A0A0A));
+            juce::Colour(0x00000000));
         setColour(juce::Slider::textBoxOutlineColourId,
-            juce::Colour(0xFF0A0A0A));
+            juce::Colour(0x00000000));
 
         setColour(juce::ComboBox::backgroundColourId,
-            juce::Colour(0xFF1A1A1A));
+            juce::Colour(0xFF111111));
         setColour(juce::ComboBox::textColourId,
             juce::Colour(0xFFE8A838));
         setColour(juce::ComboBox::outlineColourId,
@@ -474,252 +643,335 @@ public:
             juce::Colour(0xFFE8A838));
 
         setColour(juce::PopupMenu::backgroundColourId,
-            juce::Colour(0xFF1A1A1A));
+            juce::Colour(0xFF0F0F0F));
         setColour(juce::PopupMenu::textColourId,
-            juce::Colour(0xFFE8C878));
+            juce::Colour(0xFFD8D0C0));
         setColour(
             juce::PopupMenu::highlightedBackgroundColourId,
-            juce::Colour(0xFF2A2A1A));
-        setColour(juce::PopupMenu::highlightedTextColourId,
+            juce::Colour(0xFF1A1A10));
+        setColour(
+            juce::PopupMenu::highlightedTextColourId,
             juce::Colour(0xFFE8A838));
 
         setColour(juce::Label::textColourId,
-            juce::Colour(0xFFE8C878));
+            juce::Colour(0xFFD8D0C0));
     }
 
-    //──────────────────────────────────────────
-    // ROTARY KNOB DRAWING
-    // Dark metal body with amber indicator arc
-    //──────────────────────────────────────────
-    void drawRotarySlider(juce::Graphics& g,
+    //──────────────────────────────────────────────
+    // ROTARY KNOB
+    // Reads knobStyle property to select filmstrip
+    // Falls back to programmatic rendering if
+    // TextureCache not yet available
+    //──────────────────────────────────────────────
+    void drawRotarySlider(
+        juce::Graphics& g,
         int x, int y, int width, int height,
-        float sliderPos, float rotaryStartAngle,
+        float sliderPos,
+        float rotaryStartAngle,
         float rotaryEndAngle,
         juce::Slider& slider) override
     {
         auto bounds = juce::Rectangle<int>(
-            x, y, width, height).toFloat().reduced(4);
+            x, y, width, height)
+            .toFloat().reduced(4);
 
-        float radius  = juce::jmin(bounds.getWidth(),
+        float radius  = juce::jmin(
+            bounds.getWidth(),
             bounds.getHeight()) * 0.5f;
         float centreX = bounds.getCentreX();
         float centreY = bounds.getCentreY();
-
-        float angle = rotaryStartAngle
+        float angle   = rotaryStartAngle
             + sliderPos
             * (rotaryEndAngle - rotaryStartAngle);
 
-        bool enabled = slider.isEnabled();
-        float alpha  = enabled ? 1.0f : 0.3f;
+        bool  enabled = slider.isEnabled();
+        float alpha   = enabled ? 1.0f : 0.25f;
 
-        // Outer shadow
-        g.setColour(juce::Colour(0xFF000000)
-            .withAlpha(0.3f * alpha));
-        g.fillEllipse(centreX - radius + 1,
-                      centreY - radius + 1,
-                      radius * 2, radius * 2);
+        // Read style property from slider
+        int styleInt = static_cast<int>(
+            slider.getProperties()
+            .getWithDefault("knobStyle", 0));
 
-        // Track arc (background)
+        // Try filmstrip rendering first
+        auto* tex = TextureCache::getInstance();
+        bool drawnFromStrip = false;
+
+        if (tex != nullptr)
+        {
+            juce::Image* strip = nullptr;
+
+            switch (styleInt)
+            {
+                case 1:
+                    strip = &tex->knobFilmstripVintage;
+                    break;
+                case 2:
+                    strip = &tex->knobFilmstripSSL;
+                    break;
+                case 3:
+                    strip = &tex->knobFilmstripAPI;
+                    break;
+                default:
+                    strip = &tex->knobFilmstrip;
+                    break;
+            }
+
+            if (strip != nullptr
+             && !strip->isNull()
+             && strip->getWidth() > 0)
+            {
+                int numFrames = strip->getHeight()
+                    / strip->getWidth();
+                int frame = juce::jlimit(0,
+                    numFrames - 1,
+                    static_cast<int>(
+                        sliderPos * (numFrames - 1)));
+                int frameH = strip->getWidth();
+                int frameY = frame * frameH;
+                int kSize  = static_cast<int>(
+                    radius * 2.0f);
+                int kX = static_cast<int>(
+                    centreX - radius);
+                int kY = static_cast<int>(
+                    centreY - radius);
+
+                g.setOpacity(alpha);
+                g.drawImage(*strip,
+                    kX, kY, kSize, kSize,
+                    0, frameY, frameH, frameH,
+                    false);
+                g.setOpacity(1.0f);
+
+                drawnFromStrip = true;
+            }
+        }
+
+        // Fallback programmatic rendering
+        // Used if texture not loaded
+        if (!drawnFromStrip)
+        {
+            // Outer shadow
+            g.setColour(juce::Colour(0x25000000));
+            g.fillEllipse(
+                centreX - radius + 1,
+                centreY - radius + 1,
+                radius * 2, radius * 2);
+
+            // Knob body gradient
+            juce::ColourGradient bodyGrad(
+                juce::Colour(0xFF3A3A3A)
+                    .withAlpha(alpha),
+                centreX, centreY - radius,
+                juce::Colour(0xFF181818)
+                    .withAlpha(alpha),
+                centreX, centreY + radius,
+                false);
+            g.setGradientFill(bodyGrad);
+            g.fillEllipse(
+                centreX - radius,
+                centreY - radius,
+                radius * 2, radius * 2);
+
+            // Edge ring
+            g.setColour(juce::Colour(0xFF444444)
+                .withAlpha(alpha));
+            g.drawEllipse(
+                centreX - radius,
+                centreY - radius,
+                radius * 2, radius * 2,
+                1.2f);
+
+            // Indicator line
+            if (enabled)
+            {
+                float cosA = std::cos(angle);
+                float sinA = std::sin(angle);
+                float lineEnd = radius * 0.65f;
+
+                g.setColour(
+                    juce::Colour(0xFFE8A838));
+                g.drawLine(
+                    centreX, centreY,
+                    centreX + lineEnd * cosA,
+                    centreY + lineEnd * sinA,
+                    2.0f);
+            }
+
+            // Center dot
+            g.setColour(juce::Colour(0xFF444444)
+                .withAlpha(alpha));
+            g.fillEllipse(
+                centreX - 2.5f,
+                centreY - 2.5f,
+                5.0f, 5.0f);
+        }
+
+        // Track arc - always drawn over the knob
         juce::Path trackArc;
-        trackArc.addCentredArc(centreX, centreY,
-            radius * 0.85f, radius * 0.85f,
+        trackArc.addCentredArc(
+            centreX, centreY,
+            radius * 0.9f, radius * 0.9f,
             0.0f,
             rotaryStartAngle, rotaryEndAngle,
             true);
         g.setColour(juce::Colour(0xFF1A1A1A)
             .withAlpha(alpha));
         g.strokePath(trackArc,
-            juce::PathStrokeType(3.0f));
+            juce::PathStrokeType(2.5f));
 
-        // Active arc (amber)
-        if (sliderPos > 0.01f)
+        // Active arc
+        if (sliderPos > 0.005f && enabled)
         {
             juce::Path activeArc;
-            activeArc.addCentredArc(centreX, centreY,
-                radius * 0.85f, radius * 0.85f,
+            activeArc.addCentredArc(
+                centreX, centreY,
+                radius * 0.9f, radius * 0.9f,
                 0.0f,
                 rotaryStartAngle, angle,
                 true);
             g.setColour(juce::Colour(0xFFE8A838)
-                .withAlpha(0.7f * alpha));
+                .withAlpha(0.80f));
             g.strokePath(activeArc,
-                juce::PathStrokeType(3.0f));
+                juce::PathStrokeType(3.0f,
+                    juce::PathStrokeType::curved,
+                    juce::PathStrokeType::rounded));
         }
-
-        // Knob body - dark metal gradient
-        juce::ColourGradient bodyGrad(
-            juce::Colour(0xFF3A3A3A).withAlpha(alpha),
-            centreX, centreY - radius,
-            juce::Colour(0xFF1A1A1A).withAlpha(alpha),
-            centreX, centreY + radius,
-            false);
-        g.setGradientFill(bodyGrad);
-        g.fillEllipse(centreX - radius * 0.7f,
-                      centreY - radius * 0.7f,
-                      radius * 1.4f,
-                      radius * 1.4f);
-
-        // Knob edge ring
-        g.setColour(juce::Colour(0xFF4A4A4A)
-            .withAlpha(alpha));
-        g.drawEllipse(centreX - radius * 0.7f,
-                      centreY - radius * 0.7f,
-                      radius * 1.4f,
-                      radius * 1.4f,
-                      1.5f);
-
-        // Knurled edge texture (subtle dots)
-        if (radius > 20)
-        {
-            g.setColour(juce::Colour(0xFF2A2A2A)
-                .withAlpha(0.5f * alpha));
-            int numDots = 24;
-            float dotR  = radius * 0.75f;
-            for (int i = 0; i < numDots; i++)
-            {
-                float dotAngle = (float)i
-                    / numDots * juce::MathConstants<float>::twoPi;
-                float dx = centreX
-                    + dotR * std::cos(dotAngle);
-                float dy = centreY
-                    + dotR * std::sin(dotAngle);
-                g.fillEllipse(dx - 1, dy - 1, 2, 2);
-            }
-        }
-
-        // Indicator line
-        float lineLen = radius * 0.5f;
-        float startR  = radius * 0.2f;
-        g.setColour(juce::Colour(0xFFE8A838)
-            .withAlpha(alpha));
-        g.drawLine(
-            centreX + startR * std::cos(angle),
-            centreY + startR * std::sin(angle),
-            centreX + lineLen * std::cos(angle),
-            centreY + lineLen * std::sin(angle),
-            2.5f);
-
-        // Center dot
-        g.setColour(juce::Colour(0xFF555555)
-            .withAlpha(alpha));
-        g.fillEllipse(centreX - 3, centreY - 3,
-                      6, 6);
-
-        // Top highlight
-        g.setColour(juce::Colour(0x0CFFFFFF)
-            .withAlpha(alpha));
-        g.fillEllipse(
-            centreX - radius * 0.3f,
-            centreY - radius * 0.5f,
-            radius * 0.6f,
-            radius * 0.3f);
     }
 
-    //──────────────────────────────────────────
-    // COMBO BOX DRAWING
-    // Dark panel with amber text
-    //──────────────────────────────────────────
-    void drawComboBox(juce::Graphics& g,
-        int width, int height, bool isDown,
+    //──────────────────────────────────────────────
+    // COMBO BOX
+    // No texture blit - removed per audit
+    // Texture at 15% opacity was invisible
+    // and wasted paint time
+    //──────────────────────────────────────────────
+    void drawComboBox(
+        juce::Graphics& g,
+        int width, int height,
+        bool isDown,
         int, int, int, int,
-        juce::ComboBox& box) override
+        juce::ComboBox&) override
     {
-        auto bounds = juce::Rectangle<int>(
-            0, 0, width, height).toFloat();
+        auto b = juce::Rectangle<float>(
+            0, 0,
+            static_cast<float>(width),
+            static_cast<float>(height));
 
         // Background
         g.setColour(juce::Colour(
-            isDown ? 0xFF222222 : 0xFF1A1A1A));
-        g.fillRoundedRectangle(bounds, 3.0f);
+            isDown ? 0xFF181818 : 0xFF111111));
+        g.fillRoundedRectangle(b, 3.0f);
 
         // Border
-        g.setColour(juce::Colour(0xFF3A3A3A));
+        g.setColour(juce::Colour(0xFF2A2A2A));
         g.drawRoundedRectangle(
-            bounds.reduced(0.5f), 3.0f, 1.0f);
+            b.reduced(0.5f), 3.0f, 1.0f);
+
+        // Top catch light
+        g.setColour(juce::Colour(0xFF1E1E1E));
+        g.drawHorizontalLine(1, 2.0f,
+            static_cast<float>(width) - 2.0f);
 
         // Arrow
-        float arrowX = width - 18.0f;
-        float arrowY = height * 0.5f;
+        float arrowX = static_cast<float>(width)
+            - 16.0f;
+        float arrowY = static_cast<float>(height)
+            * 0.5f;
+
         juce::Path arrow;
         arrow.addTriangle(
-            arrowX, arrowY - 3,
-            arrowX + 8, arrowY - 3,
-            arrowX + 4, arrowY + 3);
+            arrowX,       arrowY - 3.0f,
+            arrowX + 7.0f, arrowY,
+            arrowX,       arrowY + 3.0f);
         g.setColour(juce::Colour(0xFFE8A838));
         g.fillPath(arrow);
     }
 
-    //──────────────────────────────────────────
-    // TOGGLE BUTTON DRAWING
-    // Hardware style illuminated button
-    //──────────────────────────────────────────
-    void drawToggleButton(juce::Graphics& g,
+    //──────────────────────────────────────────────
+    // TOGGLE BUTTON
+    // Fixed bypass LED logic
+    // isBypass property inverts glow behavior
+    // toggleState=false + isBypass = section ON = glow
+    // toggleState=true  + isBypass = bypassed = dark
+    //──────────────────────────────────────────────
+    void drawToggleButton(
+        juce::Graphics& g,
         juce::ToggleButton& button,
-        bool highlighted, bool isDown) override
+        bool highlighted, bool) override
     {
-        auto bounds = button.getLocalBounds()
-            .toFloat().reduced(1);
+        auto b = button.getLocalBounds()
+            .toFloat().reduced(1.0f);
 
-        bool on = button.getToggleState();
+        // Bypass buttons have inverted semantics
+        bool isBypass = static_cast<bool>(
+            button.getProperties()
+            .getWithDefault("isBypass", false));
+
+        bool on = isBypass
+            ? !button.getToggleState()
+            :  button.getToggleState();
 
         // Background
         g.setColour(on
-            ? juce::Colour(0xFF2A1A00)
-            : juce::Colour(0xFF1A1A1A));
-        g.fillRoundedRectangle(bounds, 3.0f);
+            ? juce::Colour(0xFF1A1200)
+            : juce::Colour(0xFF0F0F0F));
+        g.fillRoundedRectangle(b, 3.0f);
 
         // Border
         g.setColour(on
             ? juce::Colour(0xFFE8A838)
-            : juce::Colour(0xFF333333));
-        g.drawRoundedRectangle(bounds, 3.0f, 1.0f);
+            : juce::Colour(0xFF222222));
+        g.drawRoundedRectangle(b, 3.0f, 1.0f);
 
         // LED indicator dot
-        float dotX = bounds.getX() + 8;
-        float dotY = bounds.getCentreY();
-        float dotR = 3.0f;
+        float dotX = b.getX() + 8.0f;
+        float dotY = b.getCentreY();
+        float dotR = 2.5f;
 
         if (on)
         {
-            // LED glow
-            g.setColour(juce::Colour(0x30E8A838));
-            g.fillEllipse(dotX - 5, dotY - 5, 10, 10);
+            // Glow halo
+            g.setColour(juce::Colour(0x28E8A838));
+            g.fillEllipse(
+                dotX - 5.0f, dotY - 5.0f,
+                10.0f, 10.0f);
             // LED body
             g.setColour(juce::Colour(0xFFE8A838));
-            g.fillEllipse(dotX - dotR, dotY - dotR,
-                         dotR * 2, dotR * 2);
         }
         else
         {
-            g.setColour(juce::Colour(0xFF333333));
-            g.fillEllipse(dotX - dotR, dotY - dotR,
-                         dotR * 2, dotR * 2);
+            g.setColour(juce::Colour(0xFF252525));
         }
 
-        // Text
+        g.fillEllipse(
+            dotX - dotR, dotY - dotR,
+            dotR * 2.0f, dotR * 2.0f);
+
+        // Button text
         g.setColour(on
             ? juce::Colour(0xFFE8A838)
-            : juce::Colour(0xFF555555));
+            : juce::Colour(0xFF3A3A3A));
         g.setFont(juce::Font(
-            juce::FontOptions(9.0f).withStyle("Bold")));
+            juce::FontOptions(8.0f)
+            .withStyle("Bold")));
         g.drawText(button.getButtonText(),
-            bounds.withLeft(bounds.getX() + 16),
+            b.withLeft(b.getX() + 16.0f),
             juce::Justification::centredLeft);
 
         // Hover highlight
         if (highlighted)
         {
             g.setColour(
-                juce::Colours::white.withAlpha(0.03f));
-            g.fillRoundedRectangle(bounds, 3.0f);
+                juce::Colours::white
+                .withAlpha(0.02f));
+            g.fillRoundedRectangle(b, 3.0f);
         }
     }
 
-    //──────────────────────────────────────────
-    // LABEL DRAWING
-    // Clean amber text
-    //──────────────────────────────────────────
-    void drawLabel(juce::Graphics& g,
+    //──────────────────────────────────────────────
+    // LABEL
+    //──────────────────────────────────────────────
+    void drawLabel(
+        juce::Graphics& g,
         juce::Label& label) override
     {
         g.setColour(label.findColour(
@@ -730,72 +982,3 @@ public:
             label.getJustificationType());
     }
 };
-
-//==============================================================================
-// BRUSHED METAL BACKGROUND
-// Renders a realistic brushed metal texture
-//==============================================================================
-namespace PanelTextures
-{
-    inline void drawBrushedMetal(
-        juce::Graphics& g,
-        juce::Rectangle<float> area,
-        juce::Colour baseColor,
-        float scratchIntensity = 0.03f)
-    {
-        // Base color
-        g.setColour(baseColor);
-        g.fillRoundedRectangle(area, 5.0f);
-
-        // Vertical gradient for depth
-        g.setGradientFill(
-            juce::ColourGradient(
-                juce::Colours::white.withAlpha(0.04f),
-                area.getX(), area.getY(),
-                juce::Colours::black.withAlpha(0.06f),
-                area.getX(), area.getBottom(),
-                false));
-        g.fillRoundedRectangle(area, 5.0f);
-
-        // Horizontal brush lines
-        juce::Random rng(42);
-        g.setColour(juce::Colours::white
-            .withAlpha(scratchIntensity));
-
-        for (int i = 0; i < 60; i++)
-        {
-            float y = area.getY()
-                + rng.nextFloat() * area.getHeight();
-            float x1 = area.getX()
-                + rng.nextFloat() * area.getWidth()
-                * 0.3f;
-            float x2 = x1 + rng.nextFloat()
-                * area.getWidth() * 0.7f;
-            g.drawLine(x1, y, x2, y, 0.5f);
-        }
-
-        // Border
-        g.setColour(juce::Colour(0xFF2A2A2A));
-        g.drawRoundedRectangle(area, 5.0f, 1.0f);
-    }
-
-    inline void drawDust(
-        juce::Graphics& g,
-        juce::Rectangle<float> area,
-        float intensity = 0.02f)
-    {
-        juce::Random rng(123);
-        g.setColour(juce::Colours::white
-            .withAlpha(intensity));
-
-        for (int i = 0; i < 30; i++)
-        {
-            float x = area.getX()
-                + rng.nextFloat() * area.getWidth();
-            float y = area.getY()
-                + rng.nextFloat() * area.getHeight();
-            float s = 0.5f + rng.nextFloat() * 1.5f;
-            g.fillEllipse(x, y, s, s);
-        }
-    }
-}

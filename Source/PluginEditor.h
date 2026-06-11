@@ -2,11 +2,10 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 #include "CustomLookAndFeel.h"
+#include "PresetBrowser.h"
 
 //==============================================================================
-// MODEL AWARE KNOB
-// Knows how to grey itself out
-// Shows override label when model disables it
+// MODEL KNOB
 //==============================================================================
 class ModelKnob : public juce::Component
 {
@@ -16,16 +15,25 @@ public:
         slider.setSliderStyle(
             juce::Slider::RotaryHorizontalVerticalDrag);
         slider.setTextBoxStyle(
-            juce::Slider::TextBoxBelow, false, 65, 16);
+            juce::Slider::TextBoxBelow, false, 65, 15);
+        slider.setColour(
+            juce::Slider::textBoxTextColourId,
+            juce::Colour(0xFFE8E0D0));
+        slider.setColour(
+            juce::Slider::textBoxBackgroundColourId,
+            juce::Colour(0x00000000));
+        slider.setColour(
+            juce::Slider::textBoxOutlineColourId,
+            juce::Colour(0x00000000));
         addAndMakeVisible(slider);
 
         nameLabel.setJustificationType(
             juce::Justification::centred);
         nameLabel.setFont(juce::Font(
-            juce::FontOptions(9.0f)));
+            juce::FontOptions(8.5f).withStyle("Bold")));
         nameLabel.setColour(
             juce::Label::textColourId,
-            juce::Colour(0xFFE8C878));
+            juce::Colour(0xFFD8D0C0));
         addAndMakeVisible(nameLabel);
     }
 
@@ -37,10 +45,10 @@ public:
     }
 
     void setModelState(bool enabled,
-                       const juce::String& overrideText = "")
+        const juce::String& overrideText = "")
     {
         slider.setEnabled(enabled);
-        slider.setAlpha(enabled ? 1.0f : 0.3f);
+        slider.setAlpha(enabled ? 1.0f : 0.25f);
 
         if (!enabled && overrideText.isNotEmpty())
         {
@@ -48,7 +56,7 @@ public:
                 juce::dontSendNotification);
             nameLabel.setColour(
                 juce::Label::textColourId,
-                juce::Colour(0xFF555555));
+                juce::Colour(0xFF444444));
         }
         else
         {
@@ -56,7 +64,7 @@ public:
                 juce::dontSendNotification);
             nameLabel.setColour(
                 juce::Label::textColourId,
-                juce::Colour(0xFFE8C878));
+                juce::Colour(0xFFD8D0C0));
         }
     }
 
@@ -104,66 +112,68 @@ public:
 private:
     ModulatedStripProcessor& processor;
 
-    // Custom look and feel
     AnalogLookAndFeel analogLAF;
 
     //──────────────────────────────────────────────
-    // INPUT SECTION
+    // PRESET SYSTEM
+    //──────────────────────────────────────────────
+	PresetBar presetBar;
+	std::unique_ptr<PresetBrowser> presetBrowser;
+
+    //──────────────────────────────────────────────
+    // INPUT
     //──────────────────────────────────────────────
     ModelKnob inputGainKnob;
 
     //──────────────────────────────────────────────
-    // SATURATION SECTION
+    // SATURATION
     //──────────────────────────────────────────────
-    SteppedCombo satModelSelector;
-    ModelKnob    driveKnob;
-    ModelKnob    satMixKnob;
+    SteppedCombo       satModelSelector;
+    ModelKnob          driveKnob;
+    ModelKnob          satMixKnob;
     juce::ToggleButton satBypassBtn { "ON" };
 
     //──────────────────────────────────────────────
-    // COMPRESSOR SECTION
+    // COMPRESSOR
     //──────────────────────────────────────────────
-    SteppedCombo compModelSelector;
-    ModelKnob    thresholdKnob;
-    ModelKnob    ratioKnob;
-    ModelKnob    attackKnob;
-    ModelKnob    releaseKnob;
-    ModelKnob    makeupKnob;
-    ModelKnob    compMixKnob;
-    ModelKnob    kneeKnob;
-    juce::ToggleButton compBypassBtn { "ON" };
+    SteppedCombo       compModelSelector;
+    ModelKnob          thresholdKnob;
+    ModelKnob          ratioKnob;
+    ModelKnob          attackKnob;
+    ModelKnob          releaseKnob;
+    ModelKnob          makeupKnob;
+    ModelKnob          compMixKnob;
+    ModelKnob          kneeKnob;
+    juce::ToggleButton compBypassBtn  { "ON"     };
+    juce::ToggleButton allInBtn       { "ALL IN" };
+    juce::ToggleButton thrustBtn      { "THRUST" };
+    juce::ToggleButton topologyBtn    { "FWD"    };
+    juce::ToggleButton la2aLimitBtn   { "LIMIT"  };
 
-    // Model-specific compressor controls
-    SteppedCombo       fairchildTCSelector;
-    juce::ToggleButton allInBtn      { "ALL IN"  };
-    juce::ToggleButton thrustBtn     { "THRUST"  };
-    juce::ToggleButton topologyBtn   { "FWD"     };
-    juce::ToggleButton la2aLimitBtn  { "LIMIT"   };
+    SteppedCombo fairchildTCSelector;
+    juce::Label  compModelHintLabel;
 
-    juce::Label compModelHintLabel;
-
-    // Analog needle GR meter
     AnalogNeedleMeter grNeedleMeter;
 
     //──────────────────────────────────────────────
-    // EQ SECTION
+    // EQ
     //──────────────────────────────────────────────
-    SteppedCombo eqModelSelector;
-    ModelKnob    eqLowGainKnob;
-    ModelKnob    eqLowFreqKnob;
-    ModelKnob    eqMidGainKnob;
-    ModelKnob    eqMidFreqKnob;
-    ModelKnob    eqMidQKnob;
-    ModelKnob    eqHighGainKnob;
-    ModelKnob    eqHighFreqKnob;
-    ModelKnob    eqHPFKnob;
-    juce::ToggleButton eqBypassBtn  { "ON"      };
-    juce::ToggleButton eqPreCompBtn { "EQ PRE"  };
+    SteppedCombo       eqModelSelector;
+    ModelKnob          eqLowGainKnob;
+    ModelKnob          eqLowFreqKnob;
+    ModelKnob          eqMidGainKnob;
+    ModelKnob          eqMidFreqKnob;
+    ModelKnob          eqMidQKnob;
+    ModelKnob          eqHighGainKnob;
+    ModelKnob          eqHighFreqKnob;
+    ModelKnob          eqHPFKnob;
+    juce::ToggleButton eqBypassBtn  { "ON"     };
+    juce::ToggleButton eqPreCompBtn { "EQ PRE" };
 
     juce::Label eqModelHintLabel;
 
     //──────────────────────────────────────────────
-    // OUTPUT SECTION
+    // OUTPUT
     //──────────────────────────────────────────────
     ModelKnob outputGainKnob;
 
@@ -172,14 +182,8 @@ private:
     //──────────────────────────────────────────────
     LEDLadderMeter inputMeter;
     LEDLadderMeter outputMeter;
-
-    juce::Label inputMeterLabel;
-    juce::Label outputMeterLabel;
-
-    //──────────────────────────────────────────────
-    // SCREWS
-    //──────────────────────────────────────────────
-    HardwareScrew screwTL, screwTR, screwBL, screwBR;
+    juce::Label    inputMeterLabel;
+    juce::Label    outputMeterLabel;
 
     //──────────────────────────────────────────────
     // PARAMETER ATTACHMENTS
@@ -191,16 +195,11 @@ private:
     using ButtonAtt = juce::AudioProcessorValueTreeState
         ::ButtonAttachment;
 
-    // Input
     std::unique_ptr<SliderAtt> inputGainAtt;
-
-    // Saturation
     std::unique_ptr<SliderAtt> driveAtt;
     std::unique_ptr<SliderAtt> satMixAtt;
     std::unique_ptr<ComboAtt>  satModelAtt;
     std::unique_ptr<ButtonAtt> satBypassAtt;
-
-    // Compressor
     std::unique_ptr<SliderAtt> thresholdAtt;
     std::unique_ptr<SliderAtt> ratioAtt;
     std::unique_ptr<SliderAtt> attackAtt;
@@ -215,8 +214,6 @@ private:
     std::unique_ptr<ButtonAtt> thrustAtt;
     std::unique_ptr<ButtonAtt> topologyAtt;
     std::unique_ptr<ButtonAtt> la2aLimitAtt;
-
-    // EQ
     std::unique_ptr<SliderAtt> eqLowGainAtt;
     std::unique_ptr<SliderAtt> eqLowFreqAtt;
     std::unique_ptr<SliderAtt> eqMidGainAtt;
@@ -228,15 +225,22 @@ private:
     std::unique_ptr<ComboAtt>  eqModelAtt;
     std::unique_ptr<ButtonAtt> eqBypassAtt;
     std::unique_ptr<ButtonAtt> eqPreCompAtt;
-
-    // Output
     std::unique_ptr<SliderAtt> outputGainAtt;
 
     //──────────────────────────────────────────────
-    // UI STATE MACHINE
+    // HELPERS
     //──────────────────────────────────────────────
     void updateCompressorUI(int modelIndex);
     void updateEQUI(int modelIndex);
+    void toggleBrowser();
+
+    juce::Colour getCompPanelColor(int modelIndex);
+    juce::Colour getEQPanelColor(int modelIndex);
+    juce::Colour getSatPanelColor(int modelIndex);
+
+    int currentCompModel = 0;
+    int currentEQModel   = 0;
+    int currentSatModel  = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripEditor)

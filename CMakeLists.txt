@@ -23,6 +23,7 @@ juce_add_plugin(ModulatedStrip
 target_sources(ModulatedStrip PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
+    Source/TextureGenerator.cpp
 )
 
 # Header files (for IDE visibility)
@@ -31,6 +32,9 @@ target_sources(ModulatedStrip PRIVATE
     Source/PluginEditor.h
     Source/AnalogMath.h
     Source/CustomLookAndFeel.h
+    Source/TextureGenerator.h
+    Source/PresetManager.h
+    Source/PresetBrowser.h
     Source/SaturationProcessor.h
     Source/CompressorProcessor.h
     Source/EQProcessor.h
