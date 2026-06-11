@@ -40,8 +40,6 @@ public:
     void setStateInformation(const void*, int) override;
 
     juce::AudioProcessorValueTreeState apvts;
-
-    // Preset manager - public so editor can access
     PresetManager presetManager;
 
     float getOutputPeak()    const
@@ -58,8 +56,21 @@ private:
     SaturationProcessor saturation;
     CompressorProcessor compressor;
     EQProcessor         equalizer;
+    SaturationProcessor analogBypassSat;
 
-    // Cached parameter pointers
+    // Oversampling
+    std::unique_ptr<juce::dsp::Oversampling<float>>
+        oversampling;
+    int  currentOversampleFactor = 1;
+    int  pendingOsFactor         = 1;
+
+    // Delta mode dry buffer
+    // P1 FIX - allocated in prepareToPlay not processBlock
+    juce::AudioBuffer<float> dryBuffer;
+
+    //──────────────────────────────────────────────
+    // CACHED PARAMETER POINTERS
+    //──────────────────────────────────────────────
     std::atomic<float>* pInputGain     = nullptr;
     std::atomic<float>* pOutputGain    = nullptr;
     std::atomic<float>* pDrive         = nullptr;
@@ -91,39 +102,41 @@ private:
     std::atomic<float>* pEqHPF         = nullptr;
     std::atomic<float>* pEqBypass      = nullptr;
     std::atomic<float>* pEqPreComp     = nullptr;
+    std::atomic<float>* pOversample    = nullptr;
+    std::atomic<float>* pDelta         = nullptr;
+    std::atomic<float>* pAnalogBypass  = nullptr;
+    std::atomic<float>* pStereoMode    = nullptr;
+    std::atomic<float>* pCrosstalk     = nullptr;
+    std::atomic<float>* pNoiseFloor    = nullptr;
 
-    // Smoothed parameters
+    //──────────────────────────────────────────────
+    // SMOOTHED PARAMETERS
+    //──────────────────────────────────────────────
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> inputGainSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        inputGainSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> outputGainSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        outputGainSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> driveSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        driveSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> makeupSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        makeupSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> satMixSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        satMixSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear> compMixSmoothed;
+        juce::ValueSmoothingTypes::Linear>
+        compMixSmoothed;
 
     std::atomic<float> inputPeak  { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
 
-    inline float safeTanh(float x)
-    {
-        if (x >  3.0f) return  1.0f;
-        if (x < -3.0f) return -1.0f;
-        float x2 = x * x;
-        return x * (27.0f + x2) / (27.0f + 9.0f * x2);
-    }
-
-    inline float softClip(float x)
-    {
-        const float ceiling = 0.944f;
-        if (x > ceiling || x < -ceiling)
-            return ceiling * safeTanh(x / ceiling);
-        return x;
-    }
+    void encodeMS(juce::AudioBuffer<float>& buffer);
+    void decodeMS(juce::AudioBuffer<float>& buffer);
+    void setupOversampling(int factor, int maxBlockSize);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)

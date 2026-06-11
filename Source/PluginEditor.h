@@ -111,31 +111,22 @@ public:
 
 private:
     ModulatedStripProcessor& processor;
-
     AnalogLookAndFeel analogLAF;
 
-    //──────────────────────────────────────────────
-    // PRESET SYSTEM
-    //──────────────────────────────────────────────
-	PresetBar presetBar;
-	std::unique_ptr<PresetBrowser> presetBrowser;
+    // Preset
+    PresetBar presetBar;
+    std::unique_ptr<PresetBrowser> presetBrowser;
 
-    //──────────────────────────────────────────────
-    // INPUT
-    //──────────────────────────────────────────────
+    // Input
     ModelKnob inputGainKnob;
 
-    //──────────────────────────────────────────────
-    // SATURATION
-    //──────────────────────────────────────────────
+    // Saturation
     SteppedCombo       satModelSelector;
     ModelKnob          driveKnob;
     ModelKnob          satMixKnob;
     juce::ToggleButton satBypassBtn { "ON" };
 
-    //──────────────────────────────────────────────
-    // COMPRESSOR
-    //──────────────────────────────────────────────
+    // Compressor
     SteppedCombo       compModelSelector;
     ModelKnob          thresholdKnob;
     ModelKnob          ratioKnob;
@@ -149,15 +140,11 @@ private:
     juce::ToggleButton thrustBtn      { "THRUST" };
     juce::ToggleButton topologyBtn    { "FWD"    };
     juce::ToggleButton la2aLimitBtn   { "LIMIT"  };
+    SteppedCombo       fairchildTCSelector;
+    juce::Label        compModelHintLabel;
+    AnalogNeedleMeter  grNeedleMeter;
 
-    SteppedCombo fairchildTCSelector;
-    juce::Label  compModelHintLabel;
-
-    AnalogNeedleMeter grNeedleMeter;
-
-    //──────────────────────────────────────────────
     // EQ
-    //──────────────────────────────────────────────
     SteppedCombo       eqModelSelector;
     ModelKnob          eqLowGainKnob;
     ModelKnob          eqLowFreqKnob;
@@ -169,25 +156,26 @@ private:
     ModelKnob          eqHPFKnob;
     juce::ToggleButton eqBypassBtn  { "ON"     };
     juce::ToggleButton eqPreCompBtn { "EQ PRE" };
+    juce::Label        eqModelHintLabel;
 
-    juce::Label eqModelHintLabel;
-
-    //──────────────────────────────────────────────
-    // OUTPUT
-    //──────────────────────────────────────────────
+    // Output
     ModelKnob outputGainKnob;
 
-    //──────────────────────────────────────────────
-    // METERS
-    //──────────────────────────────────────────────
+    // Meters
     LEDLadderMeter inputMeter;
     LEDLadderMeter outputMeter;
     juce::Label    inputMeterLabel;
     juce::Label    outputMeterLabel;
 
-    //──────────────────────────────────────────────
-    // PARAMETER ATTACHMENTS
-    //──────────────────────────────────────────────
+    // New feature controls
+    SteppedCombo       oversampleSelector;
+    juce::ToggleButton deltaBtn        { "DELTA"  };
+    juce::ToggleButton analogBypassBtn { "ANALOG" };
+    SteppedCombo       stereoModeSelector;
+    juce::ToggleButton crosstalkBtn    { "XTALK"  };
+    juce::ToggleButton noiseFloorBtn   { "NOISE"  };
+
+    // Attachments
     using SliderAtt = juce::AudioProcessorValueTreeState
         ::SliderAttachment;
     using ComboAtt  = juce::AudioProcessorValueTreeState
@@ -226,17 +214,21 @@ private:
     std::unique_ptr<ButtonAtt> eqBypassAtt;
     std::unique_ptr<ButtonAtt> eqPreCompAtt;
     std::unique_ptr<SliderAtt> outputGainAtt;
+    std::unique_ptr<ComboAtt>  oversampleAtt;
+    std::unique_ptr<ButtonAtt> deltaAtt;
+    std::unique_ptr<ButtonAtt> analogBypassAtt;
+    std::unique_ptr<ComboAtt>  stereoModeAtt;
+    std::unique_ptr<ButtonAtt> crosstalkAtt;
+    std::unique_ptr<ButtonAtt> noiseFloorAtt;
 
-    //──────────────────────────────────────────────
-    // HELPERS
-    //──────────────────────────────────────────────
+    // Helpers
     void updateCompressorUI(int modelIndex);
     void updateEQUI(int modelIndex);
     void toggleBrowser();
 
-    juce::Colour getCompPanelColor(int modelIndex);
-    juce::Colour getEQPanelColor(int modelIndex);
-    juce::Colour getSatPanelColor(int modelIndex);
+    juce::Colour getCompPanelColor(int idx);
+    juce::Colour getEQPanelColor(int idx);
+    juce::Colour getSatPanelColor(int idx);
 
     int currentCompModel = 0;
     int currentEQModel   = 0;
