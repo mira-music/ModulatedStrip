@@ -1180,6 +1180,501 @@ private:
                 {"inputGain",      0.0f},
                 {"outputGain",     -1.5f}
             });
+
+        // ── DEEP HOUSE EXTENDED ───────────────
+        addFactory("Deep Modular",
+            "Deep House",
+            "Modular synth warmth. "
+            "Heavy iron transformer into "
+            "smooth Fairchild. Classic modular tone.",
+            {
+                {"satModel",       6.0f},  // IRON
+                {"drive",          30.0f},
+                {"satMix",         85.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -20.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     20.0f},
+                {"compRelease",    1000.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        75.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      3.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -1.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Deep Groove",
+            "Deep House",
+            "Groove-focused deep house. "
+            "SSL compression locks the groove. "
+            "Neve warmth underneath.",
+            {
+                {"satModel",       0.0f},  // NEVE
+                {"drive",          20.0f},
+                {"satMix",         80.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -16.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     1.0f},
+                {"compRelease",    200.0f},
+                {"compMakeup",     3.0f},
+                {"compMix",        80.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      2.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      350.0f},
+                {"eqHighGain",     1.5f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -0.5f}
+            });
+
+        addFactory("Late Night Deep",
+            "Deep House",
+            "Late night intimate deep house. "
+            "Subtle tube warmth, "
+            "optical smoothing, Pultec air.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          12.0f},
+                {"satMix",         70.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -25.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     15.0f},
+                {"compRelease",    600.0f},
+                {"compMakeup",     1.5f},
+                {"compMix",        65.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     3.5f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── PROGRESSIVE HOUSE EXTENDED ────────
+        addFactory("Progressive Peak",
+            "Progressive House",
+            "Festival-ready progressive peak time. "
+            "Maximum energy and impact. "
+            "API punch with SSL control.",
+            {
+                {"satModel",       2.0f},  // API
+                {"drive",          35.0f},
+                {"satMix",         80.0f},
+                {"compModel",      4.0f},  // API 2500
+                {"compThreshold",  -14.0f},
+                {"compRatio",      6.0f},
+                {"compAttack",     0.3f},
+                {"compRelease",    100.0f},
+                {"compMakeup",     4.0f},
+                {"compMix",        85.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      3.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     3.5f},
+                {"eqHighFreq",     10000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.5f}
+            });
+
+        addFactory("Progressive Atmosphere",
+            "Progressive House",
+            "Atmospheric progressive breakdown. "
+            "Wide, lush, emotional. "
+            "Fairchild glue with Neve air.",
+            {
+                {"satModel",       4.0f},  // TAPE
+                {"drive",          15.0f},
+                {"satMix",         75.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -22.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     30.0f},
+                {"compRelease",    1500.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        60.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      1.5f},
+                {"eqLowFreq",      110.0f},
+                {"eqMidGain",      -1.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     3.5f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── MELODIC HOUSE EXTENDED ────────────
+        addFactory("Melodic Emotion",
+            "Melodic House",
+            "Emotional melodic house. "
+            "Tube warmth for feeling. "
+            "LA-2A transparency. Neve presence.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          18.0f},
+                {"satMix",         85.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -20.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     12.0f},
+                {"compRelease",    400.0f},
+                {"compMakeup",     3.0f},
+                {"compMix",        90.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      1.5f},
+                {"eqMidFreq",      2000.0f},
+                {"eqHighGain",     3.0f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Melodic Tension",
+            "Melodic House",
+            "Building tension in melodic house. "
+            "FET edge and energy. "
+            "Forward API mids cutting through.",
+            {
+                {"satModel",       5.0f},  // FET
+                {"drive",          28.0f},
+                {"satMix",         75.0f},
+                {"compModel",      3.0f},  // 1176
+                {"compThreshold",  -14.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     3.0f},
+                {"compRelease",    100.0f},
+                {"compMakeup",     4.0f},
+                {"compMix",        80.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      2.5f},
+                {"eqMidFreq",      2500.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     10000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── TECHNO ────────────────────────────
+        addFactory("Dark Techno",
+            "Techno",
+            "Dark industrial techno. "
+            "Aggressive FET saturation. "
+            "1176 all-in. Heavy and relentless.",
+            {
+                {"satModel",       5.0f},  // FET
+                {"drive",          55.0f},
+                {"satMix",         70.0f},
+                {"compModel",      3.0f},  // 1176
+                {"compThreshold",  -10.0f},
+                {"compRatio",      12.0f},
+                {"compAttack",     0.5f},
+                {"compRelease",    50.0f},
+                {"compMakeup",     5.0f},
+                {"compMix",        55.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -3.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     1.5f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -2.0f}
+            });
+
+        addFactory("Techno Kick",
+            "Techno",
+            "Punishing techno kick. "
+            "Maximum punch and attack. "
+            "API smash with SSL control.",
+            {
+                {"satModel",       2.0f},  // API
+                {"drive",          45.0f},
+                {"satMix",         70.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -10.0f},
+                {"compRatio",      8.0f},
+                {"compAttack",     0.1f},
+                {"compRelease",    60.0f},
+                {"compMakeup",     6.0f},
+                {"compMix",        75.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      5.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -3.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -2.0f}
+            });
+
+        addFactory("Techno Bus",
+            "Techno",
+            "Techno mix bus glue. "
+            "SSL tight control with tape cohesion. "
+            "SSL clean EQ.",
+            {
+                {"satModel",       4.0f},  // TAPE
+                {"drive",          18.0f},
+                {"satMix",         75.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -16.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     1.0f},
+                {"compRelease",    150.0f},
+                {"compMakeup",     2.5f},
+                {"compMix",        80.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.5f}
+            });
+
+        // ── AMBIENT ───────────────────────────
+        addFactory("Ambient Pad",
+            "Ambient",
+            "Infinite ambient texture. "
+            "Iron transformer color only. "
+            "Fairchild TC6 program auto. "
+            "Pultec vintage air.",
+            {
+                {"satModel",       6.0f},  // IRON
+                {"drive",          8.0f},
+                {"satMix",         80.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -28.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     50.0f},
+                {"compRelease",    2000.0f},
+                {"compMakeup",     1.0f},
+                {"compMix",        50.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      1.5f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     4.0f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Ambient Drone",
+            "Ambient",
+            "Dark evolving drone. "
+            "Tape saturation for texture. "
+            "Optical smooth control. "
+            "Subtle low presence.",
+            {
+                {"satModel",       4.0f},  // TAPE
+                {"drive",          25.0f},
+                {"satMix",         80.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -20.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     15.0f},
+                {"compRelease",    2000.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        85.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      3.0f},
+                {"eqLowFreq",      110.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      600.0f},
+                {"eqHighGain",     -1.0f},
+                {"eqHighFreq",     10000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── LIVE PERFORMANCE EXTENDED ─────────
+        addFactory("Live Warmup",
+            "Live Performance",
+            "Early set warm and inviting. "
+            "Gentle tube color. "
+            "Optical control. Neve tone.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          10.0f},
+                {"satMix",         65.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -24.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     15.0f},
+                {"compRelease",    600.0f},
+                {"compMakeup",     1.5f},
+                {"compMix",        55.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Live Build",
+            "Live Performance",
+            "Building energy through the set. "
+            "API punch increasing. "
+            "SSL control tightening.",
+            {
+                {"satModel",       2.0f},  // API
+                {"drive",          25.0f},
+                {"satMix",         75.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -18.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     2.0f},
+                {"compRelease",    200.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        75.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      2.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -1.5f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.0f}
+            });
+
+        addFactory("Live After Hours",
+            "Live Performance",
+            "Post-peak intimate after hours. "
+            "Warm and deep. "
+            "Pultec vintage character throughout.",
+            {
+                {"satModel",       0.0f},  // NEVE
+                {"drive",          15.0f},
+                {"satMix",         80.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -22.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     20.0f},
+                {"compRelease",    800.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        65.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      2.5f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── MIXING TOOLS ──────────────────────
+        addFactory("Mix Reference",
+            "Mixing",
+            "Transparent mix reference chain. "
+            "Minimal coloration. "
+            "Just enough control to polish.",
+            {
+                {"satModel",       6.0f},  // IRON
+                {"drive",          5.0f},
+                {"satMix",         50.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -24.0f},
+                {"compRatio",      1.5f},
+                {"compAttack",     10.0f},
+                {"compRelease",    500.0f},
+                {"compMakeup",     0.5f},
+                {"compMix",        40.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      0.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      0.0f},
+                {"eqMidFreq",      1000.0f},
+                {"eqHighGain",     0.5f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Parallel Drums",
+            "Mixing",
+            "New York parallel compression. "
+            "Send drums to this. "
+            "Blend for density and punch.",
+            {
+                {"satModel",       5.0f},  // FET
+                {"drive",          40.0f},
+                {"satMix",         80.0f},
+                {"compModel",      3.0f},  // 1176
+                {"compThreshold",  -6.0f},
+                {"compRatio",      20.0f},
+                {"compAttack",     0.5f},
+                {"compRelease",    40.0f},
+                {"compMakeup",     8.0f},
+                {"compMix",        30.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      4.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      2.0f},
+                {"eqMidFreq",      3000.0f},
+                {"eqHighGain",     3.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -3.0f}
+            });
+
+        addFactory("Synth Bus",
+            "Mixing",
+            "Electronic synth bus glue. "
+            "SSL control with Neve warmth. "
+            "Keeps synths together.",
+            {
+                {"satModel",       1.0f},  // SSL
+                {"drive",          12.0f},
+                {"satMix",         70.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -20.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     3.0f},
+                {"compRelease",    300.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        70.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      1.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -1.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     10000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
     }
 
     //──────────────────────────────────────────

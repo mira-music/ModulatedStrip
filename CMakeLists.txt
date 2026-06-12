@@ -9,7 +9,7 @@ add_subdirectory(C:/Projects/JUCE JUCE)
 
 # Create the plugin
 juce_add_plugin(ModulatedStrip
-    COMPANY_NAME "YourName"
+    COMPANY_NAME "Modulated"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
@@ -17,6 +17,8 @@ juce_add_plugin(ModulatedStrip
     PLUGIN_CODE Mstr
     FORMATS VST3 Standalone
     PRODUCT_NAME "Modulated Strip"
+    PLUGIN_ICON_BIG   "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon_512.png"
+    PLUGIN_ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/icons/icon_64.png"
 )
 
 # Our source files

@@ -1,0 +1,19 @@
+MODULATED STRIP VST - END USER LICENSE AGREEMENT
+
+Copyright 2026 Modulated. All rights reserved.
+
+This software is provided for personal and commercial use.
+
+PERMITTED:
+- Use on any number of personal computers you own
+- Use in commercial music production
+- Include in live performances
+
+NOT PERMITTED:
+- Redistribute or resell the plugin
+- Reverse engineer the DSP algorithms
+- Remove copyright notices
+
+THE SOFTWARE IS PROVIDED AS IS WITHOUT WARRANTY OF ANY KIND.
+
+By installing this software you agree to these terms.
