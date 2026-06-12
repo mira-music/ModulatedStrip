@@ -7,9 +7,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ─────────────────────────────────────────
-  # WINDOWS BUILD
-  # ─────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
     steps:
@@ -34,9 +31,6 @@ jobs:
           name: ModulatedStrip-Windows-VST3
           path: build/ModulatedStrip_artefacts/Release/VST3/
 
-  # ─────────────────────────────────────────
-  # MAC BUILD + PKG INSTALLER
-  # ─────────────────────────────────────────
   build-mac:
     runs-on: macos-latest
     steps:
@@ -50,104 +44,107 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          cmake .. -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64" -DCMAKE_BUILD_TYPE=Release
 
       - name: Build Release
         run: cmake --build build --config Release
 
+      - name: List build output
+        run: |
+          echo "=== Build artefacts ==="
+          find build/ModulatedStrip_artefacts -type d -maxdepth 4
+          echo "=== VST3 files ==="
+          find build -name "*.vst3" -type d
+          echo "=== AU files ==="
+          find build -name "*.component" -type d
+
       - name: Create PKG installer structure
         run: |
-          # Create staging directory
+          VST3_PATH=$(find build -name "Modulated Strip.vst3" -type d | head -1)
+          AU_PATH=$(find build -name "Modulated Strip.component" -type d | head -1)
+          
+          echo "VST3 path: $VST3_PATH"
+          echo "AU path: $AU_PATH"
+          
+          if [ -z "$VST3_PATH" ]; then
+            echo "ERROR: VST3 not found in build output"
+            find build -type d -maxdepth 5
+            exit 1
+          fi
+          
           mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
           mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
           mkdir -p pkg_scripts
           mkdir -p pkg_resources
-
-          # Copy VST3
-          cp -R "build/ModulatedStrip_artefacts/Release/VST3/Modulated Strip.vst3" \
-                "pkg_root/Library/Audio/Plug-Ins/VST3/"
-
-          # Copy AU if it exists
-          if [ -d "build/ModulatedStrip_artefacts/Release/AU/Modulated Strip.component" ]; then
-            cp -R "build/ModulatedStrip_artefacts/Release/AU/Modulated Strip.component" \
-                  "pkg_root/Library/Audio/Plug-Ins/Components/"
+          
+          cp -R "$VST3_PATH" "pkg_root/Library/Audio/Plug-Ins/VST3/"
+          
+          if [ -n "$AU_PATH" ] && [ -d "$AU_PATH" ]; then
+            cp -R "$AU_PATH" "pkg_root/Library/Audio/Plug-Ins/Components/"
           fi
-
-          # Create postinstall script
-          cat > pkg_scripts/postinstall << 'POSTINSTALL'
+          
+          cat > pkg_scripts/postinstall << 'EOF'
           #!/bin/bash
-          # Create user presets directory
-          PRESETS_DIR="$HOME/Library/Application Support/ModulatedStrip"
-          mkdir -p "$PRESETS_DIR/Presets"
-
-          # Kill AU cache so Logic rescans
+          mkdir -p "$HOME/Library/Application Support/ModulatedStrip/Presets"
           killall -9 AudioComponentRegistrar 2>/dev/null || true
-
           exit 0
-          POSTINSTALL
+          EOF
           chmod +x pkg_scripts/postinstall
-
-          # Create welcome text
-          cat > pkg_resources/welcome.txt << 'WELCOME'
+          
+          cat > pkg_resources/welcome.txt << 'EOF'
           Welcome to Modulated Strip v1.0.0
-
+          
           This installer will install the Modulated Strip
           analog channel processor plugin to your system.
-
+          
           The following will be installed:
-          • VST3 plugin (for Ableton, Bitwig, Studio One, etc.)
-          • AU plugin (for Logic Pro, GarageBand)
-
+          - VST3 plugin (for Ableton, Bitwig, Studio One)
+          - AU plugin (for Logic Pro, GarageBand)
+          
           After installation, open your DAW and rescan plugins
           to find MODULATED STRIP.
-          WELCOME
-
-          # Create license text
-          cat > pkg_resources/license.txt << 'LICENSE'
+          EOF
+          
+          cat > pkg_resources/license.txt << 'EOF'
           MODULATED STRIP VST - END USER LICENSE AGREEMENT
-
+          
           Copyright 2026. All rights reserved.
-
+          
           PERMITTED:
           - Use on any number of personal computers you own
           - Use in commercial music production
           - Include in live performances
-
+          
           NOT PERMITTED:
           - Redistribute or resell the plugin
           - Reverse engineer the DSP algorithms
           - Remove copyright notices
-
+          
           THE SOFTWARE IS PROVIDED AS IS WITHOUT WARRANTY.
-
           By installing this software you agree to these terms.
-          LICENSE
-
-          # Create conclusion text
-          cat > pkg_resources/conclusion.txt << 'CONCLUSION'
-          Modulated Strip has been installed successfully! ✅
-
+          EOF
+          
+          cat > pkg_resources/conclusion.txt << 'EOF'
+          Modulated Strip has been installed successfully!
+          
           Next steps:
           1. Open your DAW (Ableton Live, Logic Pro, etc.)
           2. Rescan your plugins
-          3. Find "MODULATED STRIP"
+          3. Find MODULATED STRIP
           4. Drop it on any track
           5. Pick a preset and press play!
-
+          
           If macOS blocks the plugin:
-          Go to System Settings → Privacy & Security
-          Click "Allow Anyway" next to the plugin message
-
+          System Settings - Privacy and Security
+          Click Allow Anyway next to the plugin message
+          
           Feedback:
           Email: modulated.music.ofc@gmail.com
           Discord: miraofc2380_08940
-
-          Thank you for testing!
-          CONCLUSION
+          EOF
 
       - name: Build PKG installer
         run: |
-          # Build the component package
           pkgbuild \
             --root pkg_root \
             --scripts pkg_scripts \
@@ -155,9 +152,8 @@ jobs:
             --version 1.0.0 \
             --install-location / \
             ModulatedStrip-component.pkg
-
-          # Create distribution XML for the wizard
-          cat > distribution.xml << 'DISTXML'
+          
+          cat > distribution.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <installer-gui-script minSpecVersion="2">
               <title>Modulated Strip v1.0.0</title>
@@ -165,34 +161,27 @@ jobs:
               <domains enable_localSystem="true"/>
               <options customize="never" require-scripts="true"
                        rootVolumeOnly="true"/>
-
               <welcome    file="welcome.txt"/>
               <license    file="license.txt"/>
               <conclusion file="conclusion.txt"/>
-
               <choices-outline>
                   <line choice="default">
                       <line choice="com.modulatedstrip.vst"/>
                   </line>
               </choices-outline>
-
               <choice id="default"/>
-
               <choice id="com.modulatedstrip.vst"
-                      visible="false"
-                      customLocation="/Library/Audio/Plug-Ins">
+                      visible="false">
                   <pkg-ref id="com.modulatedstrip.vst"/>
               </choice>
-
               <pkg-ref id="com.modulatedstrip.vst"
                        version="1.0.0"
                        onConclusion="none">
                   ModulatedStrip-component.pkg
               </pkg-ref>
           </installer-gui-script>
-          DISTXML
-
-          # Build the final distribution package
+          EOF
+          
           productbuild \
             --distribution distribution.xml \
             --resources pkg_resources \
@@ -205,15 +194,12 @@ jobs:
           name: ModulatedStrip-macOS-Installer
           path: ModulatedStrip_v1.0.0_macOS.pkg
 
-      - name: Upload macOS VST3 (standalone)
+      - name: Upload macOS VST3
         uses: actions/upload-artifact@v4
         with:
           name: ModulatedStrip-macOS-VST3
-          path: build/ModulatedStrip_artefacts/Release/VST3/
+          path: pkg_root/Library/Audio/Plug-Ins/VST3/
 
-  # ─────────────────────────────────────────
-  # CREATE RELEASE (on version tags)
-  # ─────────────────────────────────────────
   create-release:
     needs: [build-windows, build-mac]
     runs-on: ubuntu-latest
@@ -226,15 +212,10 @@ jobs:
 
       - name: Prepare release files
         run: |
-          # Zip Windows VST3
           cd ModulatedStrip-Windows-VST3
           zip -r ../ModulatedStrip_v1.0.0_Windows.zip .
           cd ..
-
-          # Mac PKG is already a single file
           cp ModulatedStrip-macOS-Installer/ModulatedStrip_v1.0.0_macOS.pkg .
-
-          # Also zip standalone VST3 for Mac manual install
           cd ModulatedStrip-macOS-VST3
           zip -r ../ModulatedStrip_v1.0.0_macOS_VST3.zip .
           cd ..
@@ -245,30 +226,28 @@ jobs:
           name: "Modulated Strip v1.0.0 Beta"
           body: |
             ## Modulated Strip v1.0.0 Beta
-
+            
             Analog channel processor for electronic music.
-
+            
             ### Downloads
-
+            
             **Windows:**
-            - `ModulatedStrip_v1.0.0_Windows.zip` — VST3 plugin (manual install)
-            - Or use the Windows installer from the Dropbox link
-
+            - `ModulatedStrip_v1.0.0_Windows.zip` - VST3 plugin
+            
             **macOS:**
-            - `ModulatedStrip_v1.0.0_macOS.pkg` — **Installer (recommended)** — just double-click
-            - `ModulatedStrip_v1.0.0_macOS_VST3.zip` — Manual install
-
-            ### macOS Installation
-            1. Download the `.pkg` file
-            2. Double-click to run the installer
-            3. Follow the wizard (enter your password when asked)
-            4. Open your DAW → Rescan plugins
-            5. If blocked: System Settings → Privacy & Security → Allow
-
+            - `ModulatedStrip_v1.0.0_macOS.pkg` - **Installer (recommended)**
+            - `ModulatedStrip_v1.0.0_macOS_VST3.zip` - Manual install
+            
+            ### macOS Install
+            1. Download the .pkg file
+            2. Double-click to run installer
+            3. Enter your password when asked
+            4. Open DAW and rescan plugins
+            5. If blocked: System Settings - Security - Allow
+            
             ### Feedback
             - Email: modulated.music.ofc@gmail.com
             - Discord: miraofc2380_08940
-
           files: |
             ModulatedStrip_v1.0.0_Windows.zip
             ModulatedStrip_v1.0.0_macOS.pkg
