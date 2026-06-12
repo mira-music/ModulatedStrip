@@ -49,6 +49,10 @@ public:
     float getGainReduction() const
         { return compressor.getGainReduction(); }
 
+    // FIX - LUFS readable by GUI thread
+    float getLUFS() const
+        { return currentLUFS.load(); }
+
 private:
     juce::AudioProcessorValueTreeState::ParameterLayout
         createParameters();
@@ -58,19 +62,14 @@ private:
     EQProcessor         equalizer;
     SaturationProcessor analogBypassSat;
 
-    // Oversampling
     std::unique_ptr<juce::dsp::Oversampling<float>>
         oversampling;
-    int  currentOversampleFactor = 1;
-    int  pendingOsFactor         = 1;
+    int currentOversampleFactor = 1;
+    int pendingOsFactor         = 1;
 
-    // Delta mode dry buffer
-    // P1 FIX - allocated in prepareToPlay not processBlock
     juce::AudioBuffer<float> dryBuffer;
 
-    //──────────────────────────────────────────────
-    // CACHED PARAMETER POINTERS
-    //──────────────────────────────────────────────
+    // Parameter pointers
     std::atomic<float>* pInputGain     = nullptr;
     std::atomic<float>* pOutputGain    = nullptr;
     std::atomic<float>* pDrive         = nullptr;
@@ -109,34 +108,34 @@ private:
     std::atomic<float>* pCrosstalk     = nullptr;
     std::atomic<float>* pNoiseFloor    = nullptr;
 
-    //──────────────────────────────────────────────
-    // SMOOTHED PARAMETERS
-    //──────────────────────────────────────────────
+    // Smoothers
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        inputGainSmoothed;
+        juce::ValueSmoothingTypes::Linear> inputGainSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        outputGainSmoothed;
+        juce::ValueSmoothingTypes::Linear> outputGainSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        driveSmoothed;
+        juce::ValueSmoothingTypes::Linear> driveSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        makeupSmoothed;
+        juce::ValueSmoothingTypes::Linear> makeupSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        satMixSmoothed;
+        juce::ValueSmoothingTypes::Linear> satMixSmoothed;
     juce::SmoothedValue<float,
-        juce::ValueSmoothingTypes::Linear>
-        compMixSmoothed;
+        juce::ValueSmoothingTypes::Linear> compMixSmoothed;
 
     std::atomic<float> inputPeak  { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
 
+    // FIX - LUFS shared between audio and GUI threads
+    std::atomic<float> currentLUFS { -70.0f };
+    float lufsSmoothed = 0.0f;
+
     void encodeMS(juce::AudioBuffer<float>& buffer);
     void decodeMS(juce::AudioBuffer<float>& buffer);
     void setupOversampling(int factor, int maxBlockSize);
+
+    // FIX - LUFS computation called from processBlock
+    void updateLUFS(const juce::AudioBuffer<float>& buffer,
+                    int numSamples);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripProcessor)

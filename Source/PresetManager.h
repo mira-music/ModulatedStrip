@@ -851,6 +851,335 @@ private:
                 {"inputGain",      0.0f},
                 {"outputGain",     -0.5f}
             });
+
+        // ── VOCALS EXTENDED ──────────────────
+        addFactory("Radio Vocal",
+            "Vocals",
+            "Bright, controlled, sits in the mix. "
+            "SSL precision with API presence.",
+            {
+                {"satModel",       1.0f},  // SSL
+                {"drive",          15.0f},
+                {"satMix",         70.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -18.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     2.0f},
+                {"compRelease",    150.0f},
+                {"compMakeup",     4.0f},
+                {"compMix",        90.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      -3.0f},
+                {"eqLowFreq",      100.0f},
+                {"eqMidGain",      2.5f},
+                {"eqMidFreq",      3000.0f},
+                {"eqHighGain",     4.0f},
+                {"eqHighFreq",     10000.0f},
+                {"eqHPF",          100.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Vocal Warmth",
+            "Vocals",
+            "Vintage warmth for intimate vocals. "
+            "Tube saturation, Fairchild smoothing, "
+            "Neve presence.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          18.0f},
+                {"satMix",         80.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -22.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     25.0f},
+                {"compRelease",    600.0f},
+                {"compMakeup",     3.0f},
+                {"compMix",        80.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      0.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      2.0f},
+                {"eqMidFreq",      2500.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     12000.0f},
+                {"eqHPF",          80.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        // ── SYNTH SPECIFIC ───────────────────
+        addFactory("Synth Bass Punch",
+            "Synths",
+            "Maximum punch for synth bass. "
+            "FET saturation, fast 1176 control, "
+            "API low boost.",
+            {
+                {"satModel",       5.0f},  // FET
+                {"drive",          40.0f},
+                {"satMix",         65.0f},
+                {"compModel",      3.0f},  // 1176
+                {"compThreshold",  -10.0f},
+                {"compRatio",      8.0f},
+                {"compAttack",     1.0f},
+                {"compRelease",    60.0f},
+                {"compMakeup",     5.0f},
+                {"compMix",        60.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      4.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.0f}
+            });
+
+        addFactory("Analog Synth Color",
+            "Synths",
+            "Add vintage transformer color to "
+            "digital synths. Neve warmth throughout.",
+            {
+                {"satModel",       0.0f},  // NEVE
+                {"drive",          25.0f},
+                {"satMix",         90.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -24.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     15.0f},
+                {"compRelease",    500.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        70.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -1.0f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("808 Treatment",
+            "Synths",
+            "808 sub bass control and shape. "
+            "Tube harmonics, smooth LA-2A, "
+            "Pultec boom.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          20.0f},
+                {"satMix",         85.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -12.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     15.0f},
+                {"compRelease",    400.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        100.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      4.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -1.5f},
+                {"eqMidFreq",      300.0f},
+                {"eqHighGain",     0.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.0f}
+            });
+
+        // ── MASTERING EXTENDED ───────────────
+        addFactory("Vintage Master",
+            "Mastering",
+            "Full vintage mastering chain. "
+            "Neve iron into Fairchild into Pultec. "
+            "The classic 1970s master.",
+            {
+                {"satModel",       6.0f},  // IRON
+                {"drive",          10.0f},
+                {"satMix",         70.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -22.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     30.0f},
+                {"compRelease",    1200.0f},
+                {"compMakeup",     1.5f},
+                {"compMix",        60.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      1.5f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      400.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -0.5f}
+            });
+
+        addFactory("Streaming Master",
+            "Mastering",
+            "Optimized for streaming loudness targets. "
+            "SSL control, Neve air. "
+            "Targets approximately -14 LUFS.",
+            {
+                {"satModel",       4.0f},  // TAPE
+                {"drive",          8.0f},
+                {"satMix",         65.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -18.0f},
+                {"compRatio",      2.0f},
+                {"compAttack",     5.0f},
+                {"compRelease",    500.0f},
+                {"compMakeup",     1.0f},
+                {"compMix",        55.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      1.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -0.5f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     1.5f},
+                {"eqHighFreq",     16000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.0f}
+            });
+
+        // ── CREATIVE / EFFECT ────────────────
+        addFactory("Heavy Saturation",
+            "Creative",
+            "Heavy analog saturation for effect. "
+            "FET into 1176 all-in. "
+            "Aggressive parallel processing.",
+            {
+                {"satModel",       5.0f},  // FET
+                {"drive",          65.0f},
+                {"satMix",         50.0f},
+                {"compModel",      3.0f},  // 1176
+                {"compThreshold",  -8.0f},
+                {"compRatio",      12.0f},
+                {"compAttack",     0.5f},
+                {"compRelease",    50.0f},
+                {"compMakeup",     6.0f},
+                {"compMix",        40.0f},
+                {"eqModel",        4.0f},  // API 550A
+                {"eqLowGain",      3.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      2.0f},
+                {"eqMidFreq",      2000.0f},
+                {"eqHighGain",     2.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -3.0f}
+            });
+
+        addFactory("Tape Machine",
+            "Creative",
+            "Full tape machine simulation. "
+            "Maximum tape saturation and "
+            "Fairchild program dynamics.",
+            {
+                {"satModel",       4.0f},  // TAPE
+                {"drive",          35.0f},
+                {"satMix",         90.0f},
+                {"compModel",      1.0f},  // Fairchild
+                {"compThreshold",  -18.0f},
+                {"compRatio",      3.0f},
+                {"compAttack",     20.0f},
+                {"compRelease",    800.0f},
+                {"compMakeup",     2.0f},
+                {"compMix",        80.0f},
+                {"eqModel",        0.0f},  // Neve 1073
+                {"eqLowGain",      2.0f},
+                {"eqLowFreq",      110.0f},
+                {"eqMidGain",      -1.5f},
+                {"eqMidFreq",      350.0f},
+                {"eqHighGain",     1.5f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.0f}
+            });
+
+        addFactory("Lo-Fi Treatment",
+            "Creative",
+            "Lo-fi vintage degradation. "
+            "Heavy tube saturation, slow opto, "
+            "vintage Pultec character.",
+            {
+                {"satModel",       3.0f},  // TUBE
+                {"drive",          55.0f},
+                {"satMix",         75.0f},
+                {"compModel",      2.0f},  // LA-2A
+                {"compThreshold",  -10.0f},
+                {"compRatio",      10.0f},
+                {"compAttack",     20.0f},
+                {"compRelease",    1000.0f},
+                {"compMakeup",     4.0f},
+                {"compMix",        85.0f},
+                {"eqModel",        3.0f},  // Pultec
+                {"eqLowGain",      3.0f},
+                {"eqLowFreq",      60.0f},
+                {"eqMidGain",      -2.0f},
+                {"eqMidFreq",      1000.0f},
+                {"eqHighGain",     -3.0f},
+                {"eqHighFreq",     8000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -2.0f}
+            });
+
+        // ── LIVE PERFORMANCE EXTENDED ─────────
+        addFactory("Live Transition",
+            "Live Performance",
+            "Smooth transition between set sections. "
+            "Iron transformer only, SSL light glue. "
+            "Neutral and natural.",
+            {
+                {"satModel",       6.0f},  // IRON
+                {"drive",          6.0f},
+                {"satMix",         70.0f},
+                {"compModel",      0.0f},  // SSL Bus
+                {"compThreshold",  -28.0f},
+                {"compRatio",      1.5f},
+                {"compAttack",     10.0f},
+                {"compRelease",    500.0f},
+                {"compMakeup",     0.5f},
+                {"compMix",        45.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      1.0f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      0.0f},
+                {"eqMidFreq",      1000.0f},
+                {"eqHighGain",     1.0f},
+                {"eqHighFreq",     14000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     0.0f}
+            });
+
+        addFactory("Live Club Sound",
+            "Live Performance",
+            "Club PA optimization. "
+            "API punch with THRUST bass protection. "
+            "SSL air. Everything tight and loud.",
+            {
+                {"satModel",       2.0f},  // API
+                {"drive",          20.0f},
+                {"satMix",         75.0f},
+                {"compModel",      4.0f},  // API 2500
+                {"compThreshold",  -16.0f},
+                {"compRatio",      4.0f},
+                {"compAttack",     0.5f},
+                {"compRelease",    120.0f},
+                {"compMakeup",     3.0f},
+                {"compMix",        80.0f},
+                {"eqModel",        2.0f},  // SSL 4000E
+                {"eqLowGain",      2.5f},
+                {"eqLowFreq",      80.0f},
+                {"eqMidGain",      -1.5f},
+                {"eqMidFreq",      500.0f},
+                {"eqHighGain",     2.5f},
+                {"eqHighFreq",     12000.0f},
+                {"inputGain",      0.0f},
+                {"outputGain",     -1.5f}
+            });
     }
 
     //──────────────────────────────────────────

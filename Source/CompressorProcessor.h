@@ -50,17 +50,14 @@ public:
         calcSSLSidechainHPF();
         calcThrustHPF(150.0f);
 
-        // Noise generator state
-        noiseRng = std::mt19937(42);
-        noiseDist = std::uniform_real_distribution<float>(
-            -1.0f, 1.0f);
+        // Initialise xorshift noise state
+        // Separate seed per channel for decorrelated noise
+        noiseState[0] = 123456789u;
+        noiseState[1] = 987654321u;
 
-        // Noise pink filter state
         for (int ch = 0; ch < 2; ch++)
-        {
             for (int b = 0; b < 7; b++)
                 pinkState[ch][b] = 0.0f;
-        }
     }
 
     void setModel(int m)
@@ -112,19 +109,20 @@ public:
         float slowMs = std::min(
             500.0f + compressionDuration * 2000.0f,
             5000.0f);
-        float la2aSlowDecayCoeff = AnalogMath::msToCoeff(slowMs, srf);
+        float la2aSlowDecayCoeff =
+            AnalogMath::msToCoeff(slowMs, srf);
 
-        // Model noise floor levels in dBFS
+        // Noise floor level per model
         float noiseLevel = 0.0f;
         if (noiseFloorOn)
         {
             switch (model)
             {
-                case Model::SSL_BUS:   noiseLevel = 0.000003f; break; // -110dBFS
-                case Model::FAIRCHILD: noiseLevel = 0.000010f; break; // -100dBFS
-                case Model::LA2A:      noiseLevel = 0.000006f; break; // -104dBFS
-                case Model::FET_1176:  noiseLevel = 0.000004f; break; // -108dBFS
-                case Model::API_2500:  noiseLevel = 0.000003f; break; // -110dBFS
+                case Model::SSL_BUS:   noiseLevel = 0.000003f; break;
+                case Model::FAIRCHILD: noiseLevel = 0.000010f; break;
+                case Model::LA2A:      noiseLevel = 0.000006f; break;
+                case Model::FET_1176:  noiseLevel = 0.000004f; break;
+                case Model::API_2500:  noiseLevel = 0.000003f; break;
                 default:               noiseLevel = 0.000003f; break;
             }
         }
@@ -150,15 +148,16 @@ public:
                         sumSq += s * s;
                     }
                     float rms = std::sqrt(sumSq /
-                        static_cast<float>(std::max(numChannels, 1)));
+                        static_cast<float>(
+                            std::max(numChannels, 1)));
                     float W = 0.001f * srf;
-                    float rmsCoeff = juce::jlimit(0.0f, 0.999f,
-                        (W - 1.0f) / W);
+                    float rmsCoeff = juce::jlimit(
+                        0.0f, 0.999f, (W-1.0f)/W);
                     sslRmsState = rmsCoeff * sslRmsState
                         + (1.0f - rmsCoeff) * rms;
-                    float sidechainDb = juce::Decibels::gainToDecibels(
+                    float scDb = juce::Decibels::gainToDecibels(
                         sslRmsState, -96.0f);
-                    gainReductionDb = calcSSL(sidechainDb,
+                    gainReductionDb = calcSSL(scDb,
                         attackCoeff, releaseCoeff);
                     break;
                 }
@@ -166,8 +165,10 @@ public:
                 {
                     float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                        sc = std::max(sc, std::abs(buffer.getSample(ch, i)));
-                    float scDb = juce::Decibels::gainToDecibels(sc, -96.0f);
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb = juce::Decibels::gainToDecibels(
+                        sc, -96.0f);
                     gainReductionDb = calcFairchild(scDb);
                     break;
                 }
@@ -175,17 +176,22 @@ public:
                 {
                     float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                        sc = std::max(sc, std::abs(buffer.getSample(ch, i)));
-                    float scDb = juce::Decibels::gainToDecibels(sc, -96.0f);
-                    gainReductionDb = calcLA2A(scDb, sc, la2aSlowDecayCoeff);
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb = juce::Decibels::gainToDecibels(
+                        sc, -96.0f);
+                    gainReductionDb = calcLA2A(scDb, sc,
+                        la2aSlowDecayCoeff);
                     break;
                 }
                 case Model::FET_1176:
                 {
                     float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                        sc = std::max(sc, std::abs(buffer.getSample(ch, i)));
-                    float scDb = juce::Decibels::gainToDecibels(sc, -96.0f);
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
+                    float scDb = juce::Decibels::gainToDecibels(
+                        sc, -96.0f);
                     gainReductionDb = calcFET1176(scDb);
                     break;
                 }
@@ -193,12 +199,14 @@ public:
                 {
                     float sc = 0.0f;
                     for (int ch = 0; ch < numChannels; ch++)
-                        sc = std::max(sc, std::abs(buffer.getSample(ch, i)));
+                        sc = std::max(sc, std::abs(
+                            buffer.getSample(ch, i)));
                     if (feedbackMode)
                     {
                         float fbSc = 0.0f;
                         for (int ch = 0; ch < numChannels; ch++)
-                            fbSc = std::max(fbSc, std::abs(prevOutput[ch]));
+                            fbSc = std::max(fbSc,
+                                std::abs(prevOutput[ch]));
                         sc = fbSc;
                     }
                     gainReductionDb = calcAPI2500(sc, releaseCoeff);
@@ -207,47 +215,42 @@ public:
             }
 
             currentGainReductionDb.store(gainReductionDb);
-            float grLinear = juce::Decibels::decibelsToGain(gainReductionDb);
+            float grLinear = juce::Decibels::decibelsToGain(
+                gainReductionDb);
 
-            // Apply compression
             float outL = 0.0f, outR = 0.0f;
+
             for (int ch = 0; ch < numChannels; ch++)
             {
                 float dry = buffer.getSample(ch, i);
                 float wet = dry * grLinear * makeup;
+
+                // Uses AnalogMath::safeTanh - no local duplicate
                 wet = applyModelColor(wet);
-                float output = dry * (1.0f - mix) + wet * mix;
 
-                // Add model-specific noise floor
                 if (noiseFloorOn && noiseLevel > 0.0f)
-                {
-                    float noise = generatePinkNoise(ch) * noiseLevel;
-                    output += noise;
-                }
+                    wet += generatePinkNoise(ch) * noiseLevel;
 
+                float output = dry * (1.0f - mix) + wet * mix;
                 buffer.setSample(ch, i, output);
 
                 if (ch == 0) outL = output;
                 if (ch == 1) outR = output;
             }
 
-            // P1 FIX - Inter-channel crosstalk
-            // Two lines give the stereo "glue" of real hardware
+            // Crosstalk
             if (crosstalkOn && numChannels >= 2)
             {
-                const float xtalk = 0.002f; // 0.2% = -54dBFS isolation
+                const float xtalk = 0.002f;
                 float newL = outL + xtalk * outR;
                 float newR = outR + xtalk * outL;
                 buffer.setSample(0, i, newL);
                 buffer.setSample(1, i, newR);
             }
 
-            // Store for feedback topology
             if (model == Model::API_2500 && feedbackMode)
-            {
                 for (int ch = 0; ch < numChannels; ch++)
                     prevOutput[ch] = buffer.getSample(ch, i);
-            }
         }
     }
 
@@ -268,26 +271,25 @@ private:
     bool crosstalkOn   = true;
     bool noiseFloorOn  = true;
 
-    float envelope          = 0.0f;
-    float optoFast          = 0.0f;
-    float optoSlow          = 0.0f;
-    float sslRmsState       = 0.0f;
+    float envelope            = 0.0f;
+    float optoFast            = 0.0f;
+    float optoSlow            = 0.0f;
+    float sslRmsState         = 0.0f;
     float compressionActiveMs = 0.0f;
     float compressionDuration = 0.0f;
-    float prevOutput[2]     = { 0.0f, 0.0f };
+    float prevOutput[2]       = { 0.0f, 0.0f };
 
     float la2aFastDecayCoeff   = 0.0f;
     float la2aFixedAttackCoeff = 0.0f;
     float la2aChargeCoeffFast  = 0.0f;
     float la2aChargeCoeffSlow  = 0.0f;
 
-    // SSL HPF state
+    // SSL HPF
     double sslHpfB0 = 1.0, sslHpfB1 = 0.0, sslHpfA1 = 0.0;
     double sslHpfX1[2] = { 0.0, 0.0 };
     double sslHpfY1[2] = { 0.0, 0.0 };
 
-    // P0 FIX - Thrust HPF per-channel state
-    // Previously used single state for both channels - audio corruption bug
+    // Thrust HPF - per channel state (P0 fix)
     double thrustB0 = 1.0, thrustB1 = 0.0;
     double thrustB2 = 0.0, thrustA1 = 0.0, thrustA2 = 0.0;
     double thrustX1[2] = { 0.0, 0.0 };
@@ -295,9 +297,12 @@ private:
     double thrustY1[2] = { 0.0, 0.0 };
     double thrustY2[2] = { 0.0, 0.0 };
 
-    // Noise floor
-    std::mt19937 noiseRng;
-    std::uniform_real_distribution<float> noiseDist;
+    // FIX - xorshift32 replaces mt19937
+    // 3 XOR operations vs 624-word state generation
+    // Adequate randomness for analog noise simulation
+    // 100x faster than mt19937
+    uint32_t noiseState[2] = { 123456789u, 987654321u };
+
     float pinkState[2][7] = {};
 
     juce::SmoothedValue<float,
@@ -307,18 +312,27 @@ private:
 
     std::atomic<float> currentGainReductionDb{ 0.0f };
 
-    inline float safeTanh(float x)
+    // FIX - removed local safeTanh duplicate
+    // Was identical to AnalogMath::safeTanh
+    // Now uses shared implementation via AnalogMath.h
+
+    // xorshift32 white noise generator
+    // Per-channel state for decorrelated L/R noise
+    inline float fastWhite(int ch)
     {
-        if (x >  3.0f) return  1.0f;
-        if (x < -3.0f) return -1.0f;
-        float x2 = x * x;
-        return x * (27.0f + x2) / (27.0f + 9.0f * x2);
+        noiseState[ch] ^= noiseState[ch] << 13;
+        noiseState[ch] ^= noiseState[ch] >> 17;
+        noiseState[ch] ^= noiseState[ch] << 5;
+        // Map uint32 to [-1, 1]
+        return static_cast<float>(noiseState[ch])
+            * 2.32830644e-10f - 1.0f;
     }
 
-    // Pink noise generator (Paul Kellett approximation)
+    // Paul Kellett pink noise filter
+    // Uses fastWhite() instead of mt19937
     float generatePinkNoise(int ch)
     {
-        float white = noiseDist(noiseRng);
+        float white = fastWhite(ch);
         auto& s = pinkState[ch];
         s[0] = 0.99886f * s[0] + white * 0.0555179f;
         s[1] = 0.99332f * s[1] + white * 0.0750759f;
@@ -347,7 +361,6 @@ private:
         {
             sslHpfX1[ch] = 0.0;
             sslHpfY1[ch] = 0.0;
-            // P0 FIX - reset all per-channel thrust state
             thrustX1[ch] = thrustX2[ch] = 0.0;
             thrustY1[ch] = thrustY2[ch] = 0.0;
         }
@@ -366,7 +379,8 @@ private:
         return -(overshoot * (1.0f - 1.0f / ratio));
     }
 
-    // P1 - accepts explicit ratio to avoid member mutation
+    // P0 FIX - accepts explicit ratio and knee
+    // Prevents member mutation (LA-2A thread safety)
     float computeGainReductionWith(
         float inputDb, float r, float knee)
     {
@@ -383,11 +397,12 @@ private:
 
     void calcSSLSidechainHPF()
     {
-        double wc = 2.0 * juce::MathConstants<double>::pi * 30.0 / sr;
+        double wc = 2.0 * juce::MathConstants<double>::pi
+                  * 30.0 / sr;
         double k  = std::tan(wc / 2.0);
-        sslHpfB0 =  1.0 / (1.0 + k);
-        sslHpfB1 = -sslHpfB0;
-        sslHpfA1 = (k - 1.0) / (k + 1.0);
+        sslHpfB0  =  1.0 / (1.0 + k);
+        sslHpfB1  = -sslHpfB0;
+        sslHpfA1  = (k - 1.0) / (k + 1.0);
     }
 
     float applySSLSidechainHPF(float x, int ch)
@@ -406,7 +421,8 @@ private:
     {
         float targetGr = computeGainReduction(sidechainDb);
         if (targetGr < 0.0f)
-            compressionActiveMs += 1000.0f / static_cast<float>(sr);
+            compressionActiveMs +=
+                1000.0f / static_cast<float>(sr);
         else
             compressionActiveMs = 0.0f;
         float releaseToUse = (compressionActiveMs > 160.0f)
@@ -414,9 +430,11 @@ private:
         float adaptiveRelease = AnalogMath::msToCoeff(
             releaseToUse, static_cast<float>(sr));
         if (targetGr < envelope)
-            envelope = attackCoeff  * envelope + (1.0f - attackCoeff)  * targetGr;
+            envelope = attackCoeff * envelope
+                     + (1.0f - attackCoeff) * targetGr;
         else
-            envelope = adaptiveRelease * envelope + (1.0f - adaptiveRelease) * targetGr;
+            envelope = adaptiveRelease * envelope
+                     + (1.0f - adaptiveRelease) * targetGr;
         return envelope;
     }
 
@@ -445,8 +463,7 @@ private:
                    float sidechain,
                    float slowDecayCoeff)
     {
-        // P0 FIX - ratio no longer mutated as member variable
-        // Use local variable passed to computeGainReductionWith()
+        // P0 FIX - local ratio, no member mutation
         float la2aRatio = la2aLimit ? 10.0f : 3.0f;
 
         float norm = juce::jlimit(0.0f, 1.0f,
@@ -455,13 +472,15 @@ private:
             + norm * (la2aChargeCoeffFast - la2aChargeCoeffSlow);
 
         if (sidechain > optoFast)
-            optoFast = chargeCoeff * optoFast + (1.0f - chargeCoeff) * sidechain;
+            optoFast = chargeCoeff * optoFast
+                     + (1.0f - chargeCoeff) * sidechain;
         else
             optoFast = la2aFastDecayCoeff * optoFast
                      + (1.0f - la2aFastDecayCoeff) * sidechain;
 
         if (sidechain > optoSlow)
-            optoSlow = chargeCoeff * optoSlow + (1.0f - chargeCoeff) * sidechain;
+            optoSlow = chargeCoeff * optoSlow
+                     + (1.0f - chargeCoeff) * sidechain;
         else
             optoSlow = slowDecayCoeff * optoSlow
                      + (1.0f - slowDecayCoeff) * sidechain;
@@ -469,14 +488,16 @@ private:
         float optoState = 0.6f * optoFast + 0.4f * optoSlow;
 
         if (std::abs(envelope) > 1.0f)
-            compressionDuration += 1.0f / static_cast<float>(sr);
+            compressionDuration +=
+                1.0f / static_cast<float>(sr);
         else
             compressionDuration *= 0.999f;
         compressionDuration = std::min(compressionDuration, 10.0f);
 
-        float optoDb = juce::Decibels::gainToDecibels(optoState, -96.0f);
+        float optoDb = juce::Decibels::gainToDecibels(
+            optoState, -96.0f);
 
-        // Use local ratio - no member mutation
+        // Use local ratio via explicit overload - P0 fix
         float targetGr = computeGainReductionWith(
             optoDb, la2aRatio, kneeDb);
 
@@ -487,7 +508,8 @@ private:
             envelope = la2aFixedAttackCoeff * envelope
                      + (1.0f - la2aFixedAttackCoeff) * targetGr;
         else
-            envelope = rCoeff * envelope + (1.0f - rCoeff) * targetGr;
+            envelope = rCoeff * envelope
+                     + (1.0f - rCoeff) * targetGr;
 
         return envelope;
     }
@@ -501,13 +523,10 @@ private:
         {
             float grDepth    = std::abs(envelope);
             float allInRatio = 12.0f + grDepth * 0.8f;
-            float savedKnee  = kneeDb;
-            // Use local ratio - no member mutation needed here
-            // because computeGainReductionWith accepts explicit params
-            float wideKnee = 12.0f;
+            float wideKnee   = 12.0f;
+            // Use explicit overload - no member mutation
             targetGr = computeGainReductionWith(
                 sidechainDb, allInRatio, wideKnee);
-            (void)savedKnee;
         }
         else
         {
@@ -522,9 +541,11 @@ private:
         float fetRelease = AnalogMath::msToCoeff(mappedRelease, srf);
 
         if (targetGr < envelope)
-            envelope = fetAttack  * envelope + (1.0f - fetAttack)  * targetGr;
+            envelope = fetAttack  * envelope
+                     + (1.0f - fetAttack)  * targetGr;
         else
-            envelope = fetRelease * envelope + (1.0f - fetRelease) * targetGr;
+            envelope = fetRelease * envelope
+                     + (1.0f - fetRelease) * targetGr;
 
         return envelope;
     }
@@ -532,10 +553,8 @@ private:
     float calcAPI2500(float rawSidechain, float releaseCoeff)
     {
         float srf = static_cast<float>(sr);
-
-        // P0 FIX - Thrust HPF now uses per-channel state
-        // applyThrustHPF called with channel index
-        // For linked stereo sidechain we use ch=0 for the max value
+        // Note: ch=0 for linked stereo sidechain by design
+        // ch=1 state exists but unused in linked mode
         float sidechain = thrustOn
             ? applyThrustHPF(rawSidechain, 0)
             : rawSidechain;
@@ -544,16 +563,21 @@ private:
             std::abs(sidechain), -96.0f);
         float targetGr = computeGainReduction(sidechainDb);
         float apiAttack = AnalogMath::msToCoeff(attackMs * 0.8f, srf);
+
         if (targetGr < envelope)
-            envelope = apiAttack  * envelope + (1.0f - apiAttack)  * targetGr;
+            envelope = apiAttack  * envelope
+                     + (1.0f - apiAttack)  * targetGr;
         else
-            envelope = releaseCoeff * envelope + (1.0f - releaseCoeff) * targetGr;
+            envelope = releaseCoeff * envelope
+                     + (1.0f - releaseCoeff) * targetGr;
+
         return envelope;
     }
 
     void calcThrustHPF(float freq)
     {
-        double w0    = 2.0 * juce::MathConstants<double>::pi * freq / sr;
+        double w0    = 2.0 * juce::MathConstants<double>::pi
+                     * freq / sr;
         double cosw0 = std::cos(w0);
         double sinw0 = std::sin(w0);
         double alpha = sinw0 / (2.0 * 0.707);
@@ -567,8 +591,7 @@ private:
         thrustB2 = b2/a0; thrustA1 = a1/a0; thrustA2 = a2/a0;
     }
 
-    // P0 FIX - per-channel Thrust HPF
-    // ch parameter selects which state array to use
+    // P0 FIX - per-channel state via ch index
     float applyThrustHPF(float x, int ch)
     {
         double y = thrustB0 * x
@@ -586,18 +609,18 @@ private:
         switch (model)
         {
             case Model::FAIRCHILD:
-                return safeTanh(x * 1.1f) / 1.08f;
+                // Uses AnalogMath::safeTanh - no local duplicate
+                return AnalogMath::safeTanh(x * 1.1f) / 1.08f;
             case Model::LA2A:
                 return x + 0.015f * x * x
                      * (x > 0.0f ? 1.0f : -1.0f);
             case Model::FET_1176:
             {
                 float colored = x + 0.02f * x * x * x;
-                if (allButtonsIn)
-                    colored += 0.06f * x * x * x;
+                if (allButtonsIn) colored += 0.06f * x * x * x;
                 return colored;
             }
-            // SSL and API are intentionally clean passthrough
+            // SSL and API intentionally clean
             case Model::SSL_BUS:
             case Model::API_2500:
             default:

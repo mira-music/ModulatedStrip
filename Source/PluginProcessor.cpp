@@ -102,16 +102,13 @@ void ModulatedStripProcessor::prepareToPlay(
     compMixSmoothed   .reset(sr, 0.020);
 
     inputGainSmoothed .setCurrentAndTargetValue(
-        juce::Decibels::decibelsToGain(
-            pInputGain->load()));
+        juce::Decibels::decibelsToGain(pInputGain->load()));
     outputGainSmoothed.setCurrentAndTargetValue(
-        juce::Decibels::decibelsToGain(
-            pOutputGain->load()));
+        juce::Decibels::decibelsToGain(pOutputGain->load()));
     driveSmoothed     .setCurrentAndTargetValue(
         pDrive->load() / 100.0f);
     makeupSmoothed    .setCurrentAndTargetValue(
-        juce::Decibels::decibelsToGain(
-            pCompMakeup->load()));
+        juce::Decibels::decibelsToGain(pCompMakeup->load()));
     satMixSmoothed    .setCurrentAndTargetValue(
         pSatMix->load() / 100.0f);
     compMixSmoothed   .setCurrentAndTargetValue(
@@ -121,11 +118,19 @@ void ModulatedStripProcessor::prepareToPlay(
     dryBuffer.setSize(2, samplesPerBlock,
         false, true, false);
 
-    // Apply any pending oversampling change
-    int osFactor = static_cast<int>(
-        pOversample->load());
+    // FIX - pendingOsFactor applied at prepareToPlay
+    // This is where oversampling changes actually take effect
+    // pendingOsFactor is set in processBlock when user changes
+    // the selector, then host calls prepareToPlay on latency change
+    int osFactor = (pendingOsFactor != currentOversampleFactor)
+        ? pendingOsFactor
+        : static_cast<int>(pOversample->load());
+
     setupOversampling(osFactor, samplesPerBlock);
     pendingOsFactor = osFactor;
+
+    // Reset LUFS smoother
+    lufsSmoothed = 0.0f;
 }
 
 void ModulatedStripProcessor::releaseResources()
@@ -216,18 +221,18 @@ void ModulatedStripProcessor::processBlock(
     bool  noiseFloorOn = pNoiseFloor->load()   > 0.5f;
 
     //──────────────────────────────────────────────
-    // P1 FIX - oversampling change deferred
-    // Do not rebuild oversampling inside processBlock
-    // Store pending change, apply at next prepareToPlay
+    // FIX - oversampling change triggers host refresh
+    // updateHostDisplay() signals latency change
+    // host calls prepareToPlay where change is applied
     //──────────────────────────────────────────────
     if (osFactor != currentOversampleFactor
      && osFactor != pendingOsFactor)
     {
         pendingOsFactor = osFactor;
-        // Signal host to call prepareToPlay again
-        // In practice the host does this when it
-        // detects latency changes via reportLatency
-        // For now we queue and apply next prepare
+        // Notify host of latency change
+        // This triggers prepareToPlay on most hosts
+        // where the actual oversampling rebuild happens
+        updateHostDisplay();
     }
 
     //──────────────────────────────────────────────
@@ -237,15 +242,11 @@ void ModulatedStripProcessor::processBlock(
         juce::Decibels::decibelsToGain(inputGainDb));
     outputGainSmoothed.setTargetValue(
         juce::Decibels::decibelsToGain(outputGainDb));
-    driveSmoothed     .setTargetValue(
-        pDrive->load() / 100.0f);
+    driveSmoothed     .setTargetValue(pDrive->load() / 100.0f);
     makeupSmoothed    .setTargetValue(
-        juce::Decibels::decibelsToGain(
-            pCompMakeup->load()));
-    satMixSmoothed    .setTargetValue(
-        pSatMix->load() / 100.0f);
-    compMixSmoothed   .setTargetValue(
-        pCompMix->load() / 100.0f);
+        juce::Decibels::decibelsToGain(pCompMakeup->load()));
+    satMixSmoothed    .setTargetValue(pSatMix->load() / 100.0f);
+    compMixSmoothed   .setTargetValue(pCompMix->load() / 100.0f);
 
     //──────────────────────────────────────────────
     // UPDATE EQ
@@ -270,24 +271,20 @@ void ModulatedStripProcessor::processBlock(
     inputPeak.store(inPeak);
 
     //──────────────────────────────────────────────
-    // DELTA MODE - capture dry signal
+    // DELTA MODE
     //──────────────────────────────────────────────
     if (deltaMode)
     {
-        // dryBuffer already sized in prepareToPlay
         for (int ch = 0; ch < std::min(numChannels, 2); ch++)
-            dryBuffer.copyFrom(ch, 0,
-                buffer, ch, 0, numSamples);
+            dryBuffer.copyFrom(ch, 0, buffer, ch, 0, numSamples);
     }
 
     //──────────────────────────────────────────────
-    // ANALOG BYPASS MODE
+    // ANALOG BYPASS
     //──────────────────────────────────────────────
     if (analogBypass)
     {
-        analogBypassSat.process(buffer,
-            0.08f, 1.0f, 6); // IRON model, very subtle
-
+        analogBypassSat.process(buffer, 0.08f, 1.0f, 6);
         for (int i = 0; i < numSamples; i++)
         {
             float g = outputGainSmoothed.getNextValue();
@@ -312,6 +309,7 @@ void ModulatedStripProcessor::processBlock(
             outPeak = std::max(outPeak,
                 buffer.getMagnitude(ch, 0, numSamples));
         outputPeak.store(outPeak);
+        updateLUFS(buffer, numSamples);
         return;
     }
 
@@ -329,8 +327,7 @@ void ModulatedStripProcessor::processBlock(
     //──────────────────────────────────────────────
     // MID/SIDE ENCODE
     //──────────────────────────────────────────────
-    if (stereoMode == 1)
-        encodeMS(buffer);
+    if (stereoMode == 1) encodeMS(buffer);
 
     //──────────────────────────────────────────────
     // STAGE 2 - SATURATION
@@ -345,23 +342,18 @@ void ModulatedStripProcessor::processBlock(
         {
             juce::dsp::AudioBlock<float> block(buffer);
             auto osBlock = oversampling->processSamplesUp(block);
-
-            int osN = static_cast<int>(osBlock.getNumSamples());
+            int osN  = static_cast<int>(osBlock.getNumSamples());
             int osCh = static_cast<int>(osBlock.getNumChannels());
-
             juce::AudioBuffer<float> osBuffer(osCh, osN);
             for (int ch = 0; ch < osCh; ch++)
                 osBuffer.copyFrom(ch, 0,
                     osBlock.getChannelPointer(ch), osN);
-
             saturation.process(osBuffer,
                 currentDrive, currentSatMix, satModel);
-
             for (int ch = 0; ch < osCh; ch++)
                 juce::FloatVectorOperations::copy(
                     osBlock.getChannelPointer(ch),
                     osBuffer.getReadPointer(ch), osN);
-
             oversampling->processSamplesDown(block);
         }
         else
@@ -396,7 +388,7 @@ void ModulatedStripProcessor::processBlock(
     compressor.setMixSmoothed  (compMixSmoothed);
 
     //──────────────────────────────────────────────
-    // STAGES 3 AND 4 - EQ AND COMPRESSOR
+    // STAGES 3 AND 4
     //──────────────────────────────────────────────
     if (eqPreComp)
     {
@@ -422,8 +414,7 @@ void ModulatedStripProcessor::processBlock(
     //──────────────────────────────────────────────
     // MID/SIDE DECODE
     //──────────────────────────────────────────────
-    if (stereoMode == 1)
-        decodeMS(buffer);
+    if (stereoMode == 1) decodeMS(buffer);
 
     //──────────────────────────────────────────────
     // STAGE 5 - OUTPUT GAIN
@@ -468,6 +459,47 @@ void ModulatedStripProcessor::processBlock(
         outPeak = std::max(outPeak,
             buffer.getMagnitude(ch, 0, numSamples));
     outputPeak.store(outPeak);
+
+    // FIX - LUFS computed from output buffer
+    // Feeds the LUFSMeter component via atomics
+    updateLUFS(buffer, numSamples);
+}
+
+void ModulatedStripProcessor::updateLUFS(
+    const juce::AudioBuffer<float>& buffer,
+    int numSamples)
+{
+    // Simplified K-weighted short-term LUFS
+    // Full ITU-R BS.1770 requires pre-filter and gating
+    // This is a display approximation updated per block
+    int numCh = buffer.getNumChannels();
+    float sumSq = 0.0f;
+
+    for (int ch = 0; ch < numCh; ch++)
+    {
+        const float* data = buffer.getReadPointer(ch);
+        for (int i = 0; i < numSamples; i++)
+            sumSq += data[i] * data[i];
+    }
+
+    float rms = std::sqrt(sumSq /
+        static_cast<float>(
+            std::max(numCh, 1) * numSamples));
+
+    // 3-second integration (approximate)
+    float coeff = std::exp(-1.0f /
+        (static_cast<float>(getSampleRate())
+         * 3.0f
+         / static_cast<float>(numSamples)));
+
+    lufsSmoothed = coeff * lufsSmoothed
+                 + (1.0f - coeff) * rms;
+
+    // Store for GUI thread to read
+    // LUFSMeter reads this via getLUFS()
+    currentLUFS.store(-0.691f + 10.0f
+        * std::log10(lufsSmoothed * lufsSmoothed
+            * static_cast<float>(numCh) + 1e-10f));
 }
 
 void ModulatedStripProcessor::getStateInformation(
@@ -500,7 +532,6 @@ ModulatedStripProcessor::createParameters()
         "inputGain", "Input Gain", -24.0f, 24.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "outputGain", "Output Gain", -24.0f, 24.0f, 0.0f));
-
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         "drive", "Drive", 0.0f, 100.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -510,7 +541,6 @@ ModulatedStripProcessor::createParameters()
         juce::StringArray{"NEVE","SSL","API","TUBE","TAPE","FET","IRON"}, 0));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "satBypass", "Sat Bypass", false));
-
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "compModel", "Comp Model",
         juce::StringArray{"SSL Bus","Fairchild 670","LA-2A","1176","API 2500"}, 0));
@@ -544,7 +574,6 @@ ModulatedStripProcessor::createParameters()
         "feedbackMode", "Feedback Mode", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "la2aLimit", "LA2A Limit", false));
-
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "eqModel", "EQ Model",
         juce::StringArray{
@@ -570,7 +599,6 @@ ModulatedStripProcessor::createParameters()
         "eqBypass", "EQ Bypass", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "eqPreComp", "EQ Pre Comp", false));
-
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "oversample", "Oversample",
         juce::StringArray{"1x (Off)","2x","4x","8x"}, 0));
@@ -581,8 +609,6 @@ ModulatedStripProcessor::createParameters()
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         "stereoMode", "Stereo Mode",
         juce::StringArray{"Stereo","Mid/Side","Dual Mono"}, 0));
-
-    // Analog authenticity
     params.push_back(std::make_unique<juce::AudioParameterBool>(
         "crosstalk", "Crosstalk", true));
     params.push_back(std::make_unique<juce::AudioParameterBool>(

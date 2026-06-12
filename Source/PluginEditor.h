@@ -16,14 +16,11 @@ public:
             juce::Slider::RotaryHorizontalVerticalDrag);
         slider.setTextBoxStyle(
             juce::Slider::TextBoxBelow, false, 65, 15);
-        slider.setColour(
-            juce::Slider::textBoxTextColourId,
+        slider.setColour(juce::Slider::textBoxTextColourId,
             juce::Colour(0xFFE8E0D0));
-        slider.setColour(
-            juce::Slider::textBoxBackgroundColourId,
+        slider.setColour(juce::Slider::textBoxBackgroundColourId,
             juce::Colour(0x00000000));
-        slider.setColour(
-            juce::Slider::textBoxOutlineColourId,
+        slider.setColour(juce::Slider::textBoxOutlineColourId,
             juce::Colour(0x00000000));
         addAndMakeVisible(slider);
 
@@ -31,16 +28,14 @@ public:
             juce::Justification::centred);
         nameLabel.setFont(juce::Font(
             juce::FontOptions(8.5f).withStyle("Bold")));
-        nameLabel.setColour(
-            juce::Label::textColourId,
+        nameLabel.setColour(juce::Label::textColourId,
             juce::Colour(0xFFD8D0C0));
         addAndMakeVisible(nameLabel);
     }
 
     void setName(const juce::String& name)
     {
-        nameLabel.setText(name,
-            juce::dontSendNotification);
+        nameLabel.setText(name, juce::dontSendNotification);
         currentName = name;
     }
 
@@ -49,21 +44,18 @@ public:
     {
         slider.setEnabled(enabled);
         slider.setAlpha(enabled ? 1.0f : 0.25f);
-
         if (!enabled && overrideText.isNotEmpty())
         {
             nameLabel.setText(overrideText,
                 juce::dontSendNotification);
-            nameLabel.setColour(
-                juce::Label::textColourId,
+            nameLabel.setColour(juce::Label::textColourId,
                 juce::Colour(0xFF444444));
         }
         else
         {
             nameLabel.setText(currentName,
                 juce::dontSendNotification);
-            nameLabel.setColour(
-                juce::Label::textColourId,
+            nameLabel.setColour(juce::Label::textColourId,
                 juce::Colour(0xFFD8D0C0));
         }
     }
@@ -98,7 +90,8 @@ public:
 class ModulatedStripEditor
     : public juce::AudioProcessorEditor,
       public juce::Timer,
-      public juce::ComboBox::Listener
+      public juce::ComboBox::Listener,
+      public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     ModulatedStripEditor(ModulatedStripProcessor&);
@@ -113,20 +106,34 @@ private:
     ModulatedStripProcessor& processor;
     AnalogLookAndFeel analogLAF;
 
-    // Preset
+    //──────────────────────────────────────────────
+    // PRESET
+    //──────────────────────────────────────────────
     PresetBar presetBar;
     std::unique_ptr<PresetBrowser> presetBrowser;
 
-    // Input
-    ModelKnob inputGainKnob;
+    // A/B comparison
+    ABComparison abComparison;
+    juce::ValueTree stateA;
+    juce::ValueTree stateB;
 
-    // Saturation
+    //──────────────────────────────────────────────
+    // INPUT
+    //──────────────────────────────────────────────
+    ModelKnob    inputGainKnob;
+    ClipLatchLED inputClipLED;
+
+    //──────────────────────────────────────────────
+    // SATURATION
+    //──────────────────────────────────────────────
     SteppedCombo       satModelSelector;
     ModelKnob          driveKnob;
     ModelKnob          satMixKnob;
     juce::ToggleButton satBypassBtn { "ON" };
 
-    // Compressor
+    //──────────────────────────────────────────────
+    // COMPRESSOR
+    //──────────────────────────────────────────────
     SteppedCombo       compModelSelector;
     ModelKnob          thresholdKnob;
     ModelKnob          ratioKnob;
@@ -143,8 +150,11 @@ private:
     SteppedCombo       fairchildTCSelector;
     juce::Label        compModelHintLabel;
     AnalogNeedleMeter  grNeedleMeter;
+    GRHistoryTrace     grHistoryTrace;
 
+    //──────────────────────────────────────────────
     // EQ
+    //──────────────────────────────────────────────
     SteppedCombo       eqModelSelector;
     ModelKnob          eqLowGainKnob;
     ModelKnob          eqLowFreqKnob;
@@ -157,17 +167,26 @@ private:
     juce::ToggleButton eqBypassBtn  { "ON"     };
     juce::ToggleButton eqPreCompBtn { "EQ PRE" };
     juce::Label        eqModelHintLabel;
+    EQCurveDisplay     eqCurveDisplay;
 
-    // Output
-    ModelKnob outputGainKnob;
+    //──────────────────────────────────────────────
+    // OUTPUT
+    //──────────────────────────────────────────────
+    ModelKnob    outputGainKnob;
+    ClipLatchLED outputClipLED;
+    LUFSMeter    lufsDisplay;
 
-    // Meters
+    //──────────────────────────────────────────────
+    // METERS
+    //──────────────────────────────────────────────
     LEDLadderMeter inputMeter;
     LEDLadderMeter outputMeter;
     juce::Label    inputMeterLabel;
     juce::Label    outputMeterLabel;
 
-    // New feature controls
+    //──────────────────────────────────────────────
+    // FOOTER FEATURE CONTROLS
+    //──────────────────────────────────────────────
     SteppedCombo       oversampleSelector;
     juce::ToggleButton deltaBtn        { "DELTA"  };
     juce::ToggleButton analogBypassBtn { "ANALOG" };
@@ -175,7 +194,9 @@ private:
     juce::ToggleButton crosstalkBtn    { "XTALK"  };
     juce::ToggleButton noiseFloorBtn   { "NOISE"  };
 
-    // Attachments
+    //──────────────────────────────────────────────
+    // PARAMETER ATTACHMENTS
+    //──────────────────────────────────────────────
     using SliderAtt = juce::AudioProcessorValueTreeState
         ::SliderAttachment;
     using ComboAtt  = juce::AudioProcessorValueTreeState
@@ -221,10 +242,14 @@ private:
     std::unique_ptr<ButtonAtt> crosstalkAtt;
     std::unique_ptr<ButtonAtt> noiseFloorAtt;
 
-    // Helpers
+    //──────────────────────────────────────────────
+    // HELPERS
+    //──────────────────────────────────────────────
     void updateCompressorUI(int modelIndex);
     void updateEQUI(int modelIndex);
+    void updateEQCurve();
     void toggleBrowser();
+    void parameterChanged(const juce::String& paramID,float newValue) override;
 
     juce::Colour getCompPanelColor(int idx);
     juce::Colour getEQPanelColor(int idx);
@@ -233,6 +258,10 @@ private:
     int currentCompModel = 0;
     int currentEQModel   = 0;
     int currentSatModel  = 0;
+
+    // LUFS buffer storage for audio thread output
+    std::atomic<float> lufsL { 0.0f };
+    std::atomic<float> lufsR { 0.0f };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripEditor)
