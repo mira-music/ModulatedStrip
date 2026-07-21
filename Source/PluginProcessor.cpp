@@ -122,9 +122,11 @@ void ModulatedStripProcessor::prepareToPlay(
     // This is where oversampling changes actually take effect
     // pendingOsFactor is set in processBlock when user changes
     // the selector, then host calls prepareToPlay on latency change
+    // FIX - map choice index to actual factor (1,2,4,8)
     int osFactor = (pendingOsFactor != currentOversampleFactor)
         ? pendingOsFactor
-        : static_cast<int>(pOversample->load());
+        : (static_cast<int>(pOversample->load()) <= 0
+            ? 1 : (1 << static_cast<int>(pOversample->load())));
 
     setupOversampling(osFactor, samplesPerBlock);
     pendingOsFactor = osFactor;
@@ -213,7 +215,10 @@ void ModulatedStripProcessor::processBlock(
     bool  eqBypassed   = pEqBypass->load()  > 0.5f;
     bool  eqPreComp    = pEqPreComp->load() > 0.5f;
 
-    int   osFactor     = static_cast<int>(pOversample->load());
+    // FIX - map choice index (0,1,2,3) to actual factor (1,2,4,8)
+    // AudioParameterChoice stores the index, not the factor
+    int   osIndex    = static_cast<int>(pOversample->load());
+    int   osFactor   = (osIndex <= 0) ? 1 : (1 << osIndex);
     bool  deltaMode    = pDelta->load()        > 0.5f;
     bool  analogBypass = pAnalogBypass->load() > 0.5f;
     int   stereoMode   = static_cast<int>(pStereoMode->load());
@@ -222,17 +227,18 @@ void ModulatedStripProcessor::processBlock(
 
     //──────────────────────────────────────────────
     // FIX - oversampling change triggers host refresh
-    // updateHostDisplay() signals latency change
-    // host calls prepareToPlay where change is applied
+    // updateHostDisplay() must be called from message thread
+    // Defer via MessageManager::callAsync to avoid RT violation
     //──────────────────────────────────────────────
     if (osFactor != currentOversampleFactor
      && osFactor != pendingOsFactor)
     {
         pendingOsFactor = osFactor;
-        // Notify host of latency change
-        // This triggers prepareToPlay on most hosts
-        // where the actual oversampling rebuild happens
-        updateHostDisplay();
+        // Notify host of latency change from message thread
+        // This triggers prepareToPlay where the OS rebuild happens
+        juce::MessageManager::callAsync([this] {
+            updateHostDisplay();
+        });
     }
 
     //──────────────────────────────────────────────
