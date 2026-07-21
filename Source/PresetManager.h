@@ -32,6 +32,10 @@ public:
         : apvts(apvts)
     {
         buildFactoryPresets();
+        // FIX - load user presets from disk on startup
+        // Previously this was never called, so saved user
+        // presets were invisible in the browser
+        loadUserPresetsFromFile();
     }
 
     //──────────────────────────────────────────
@@ -1679,6 +1683,10 @@ private:
 
     //──────────────────────────────────────────
     // HELPER - Build preset from value map
+    // FIX - Build XML state on a copy without modifying
+    // the live APVTS. Previously called setValueNotifyingHost()
+    // during construction, which sent parameter change
+    // notifications to the host before the plugin was ready.
     //──────────────────────────────────────────
     void addFactory(
         const juce::String& name,
@@ -1693,27 +1701,26 @@ private:
         preset.description = description;
         preset.author      = "Modulated Strip";
 
-        // Build XML state
+        // Copy current state - we modify this copy, not the live APVTS
         auto state = apvts.copyState();
 
-        // Set each parameter value
+        // Set each parameter value on the copy
         for (auto& kv : values)
         {
-            if (auto* param = apvts
-                .getParameter(kv.first))
+            if (auto* param = apvts.getParameter(kv.first))
             {
                 float normalised =
                     param->convertTo0to1(kv.second);
-                param->setValueNotifyingHost(normalised);
+                state.setProperty(
+                    juce::Identifier(kv.first),
+                    normalised, nullptr);
             }
         }
 
-        // Capture state
-        auto newState = apvts.copyState();
-        preset.state = newState.createXml();
+        // Capture XML from the modified copy
+        preset.state = state.createXml();
 
-        // Restore original state
-        apvts.replaceState(state);
+        // Live APVTS is untouched - no notifications sent
 
         factoryPresets.push_back(std::move(preset));
     }
