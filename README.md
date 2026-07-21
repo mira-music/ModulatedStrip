@@ -23,7 +23,7 @@ Pick your analog flavor at every stage independently:
 - **7 saturation circuits** from legendary hardware
 - **5 compressor models** with authentic behavior
 - **5 equalizer models** with color EQ character
-- **60+ factory presets** across 10 categories
+- **50+ factory presets** across 12 categories
 - Built for **electronic music** and **live performance**
 
 ---
@@ -159,7 +159,7 @@ text
 
 ### Preset System
 
-- **60+ Factory Presets** across 10 categories
+- **50+ Factory Presets** across 12 categories
 - **User Preset Save/Load** with categories and descriptions
 - **Preset Browser** with filtering and search
 - **A/B Comparison** — store and switch between two states
@@ -170,15 +170,15 @@ text
 
 | Category | Count | Description |
 |----------|-------|-------------|
-| Deep House | 6 | Bus, kick, bass, pads, modular, groove |
-| Progressive House | 4 | Bus, lead, pluck, atmosphere |
-| Melodic House | 4 | Bus, chords, arp, emotion |
+| Deep House | 7 | Bus, kick, bass, pads, modular, groove, late night |
+| Progressive House | 5 | Bus, lead, pluck, peak, atmosphere |
+| Melodic House | 5 | Bus, chords, arp, emotion, tension |
 | Techno | 3 | Dark, kick, bus |
 | Ambient | 2 | Pad, drone |
 | Synths | 3 | Bass punch, analog color, 808 |
 | Vocals | 4 | Smooth, aggressive, radio, warm |
 | Drums | 2 | Punch bus, vintage bus |
-| Live Performance | 6 | Opener, warmup, build, peak, transition, after hours |
+| Live Performance | 9 | Opener, warmup, build, peak, transition, club, cool down, mix bus, after hours |
 | Mastering | 4 | Analog, modern, vintage, streaming |
 | Mixing | 3 | Reference, parallel drums, synth bus |
 | Creative | 3 | Heavy saturation, tape machine, lo-fi |
@@ -232,7 +232,7 @@ text
 | Oversampling | 1x / 2x / 4x / 8x |
 | Latency | 0 samples (1x) to ~256 (8x) |
 | Window Size | 1280 × 660 pixels |
-| Presets | 60+ factory, unlimited user |
+| Presets | 50+ factory, unlimited user |
 | DSP Accuracy | 94/100 (independent review) |
 
 ### CPU Usage (per instance, 44.1kHz, modern i7)

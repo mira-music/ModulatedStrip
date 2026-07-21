@@ -20,7 +20,7 @@ endif()
 # AU for Mac only (Audio Unit)
 # Standalone for testing
 juce_add_plugin(ModulatedStrip
-    COMPANY_NAME "YourName"
+    COMPANY_NAME "Modulated"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE

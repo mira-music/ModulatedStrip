@@ -950,7 +950,7 @@ All models can be switched during playback:
 
 ## Presets
 
-- [ ] All 60+ factory presets load without error
+- [ ] All 50+ factory presets load without error
 - [ ] User preset save works
 - [ ] User preset load restores all settings
 - [ ] User preset delete works
@@ -1081,7 +1081,7 @@ text
 | **Oversampling** | 1x, 2x, 4x, 8x |
 | **Latency** | 0 samples (1x) to ~256 samples (8x) |
 | **Window size** | 1280 × 660 pixels |
-| **Presets** | 60+ factory, unlimited user |
+| **Presets** | 50+ factory, unlimited user |
 | **State save** | Full APVTS via XML in DAW project |
 | **Soft clipper** | Transparent tanh at -0.5 dBFS |
 | **Thread safety** | Atomic parameters, smoothed gains, no RT allocation |
