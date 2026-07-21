@@ -259,10 +259,6 @@ private:
     int currentEQModel   = 0;
     int currentSatModel  = 0;
 
-    // LUFS buffer storage for audio thread output
-    std::atomic<float> lufsL { 0.0f };
-    std::atomic<float> lufsR { 0.0f };
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
         ModulatedStripEditor)
 };

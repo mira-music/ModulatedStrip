@@ -235,9 +235,11 @@ public:
         double sampleRate,
         float lowGain, float lowFreq,
         float midGain, float midFreq, float midQ,
-        float highGain, float highFreq)
+        float highGain, float highFreq,
+        int eqModel = 0)
     {
         sr = sampleRate;
+        model = eqModel;
 
         // Evaluate at numPoints log-spaced frequencies
         for (int i = 0; i < numPoints; i++)
@@ -352,11 +354,23 @@ private:
     static constexpr int numPoints = 128;
     std::vector<double> magnitudes;
     double sr = 44100.0;
+    int model = 0;  // FIX - track EQ model for shelf slope
 
     // Evaluate low/high shelf magnitude at frequency w
+    // FIX - use model-specific shelf slope to match EQProcessor::getShelfSlope()
     double evalShelf(double w, float freq,
                      float gainDb, bool isLow)
     {
+        double S = 0.8;  // default
+        switch (model)
+        {
+            case 0: case 1: S = 0.8; break;  // Neve 1073/1084
+            case 2:         S = 1.0; break;  // SSL 4000E
+            case 3:         S = 0.5; break;  // Pultec
+            case 4:         S = 0.9; break;  // API 550A
+            default:        S = 0.7; break;
+        }
+
         double A  = std::pow(10.0, gainDb / 40.0);
         double w0 = 2.0 * juce::MathConstants<double>::pi
                   * freq / sr;
@@ -1015,43 +1029,8 @@ private:
 class LUFSMeter : public juce::Component
 {
 public:
-	void setCurrentLUFS(float lufs)
+    void setCurrentLUFS(float lufs)
     {
-        currentLUFS = lufs;
-    }
-
-    void updateSamples(const float* L, const float* R,
-                       int numSamples, double sampleRate)
-    {
-        // K-weighted momentary LUFS approximation
-        // Simple RMS-based estimate with K-weighting factor
-        // Full ITU-R BS.1770 requires pre-filter + 400ms gating
-        // This is a simplified display-only approximation
-
-        float sumSq = 0.0f;
-        for (int i = 0; i < numSamples; i++)
-        {
-            float lSamp = L ? L[i] : 0.0f;
-            float rSamp = R ? R[i] : 0.0f;
-            sumSq += lSamp*lSamp + rSamp*rSamp;
-        }
-
-        float rms = std::sqrt(
-            sumSq / (2.0f * static_cast<float>(numSamples)));
-
-        // Smooth with 3-second time constant
-        float coeff = std::exp(-1.0f /
-            (static_cast<float>(sampleRate) * 3.0f
-             / static_cast<float>(numSamples)));
-
-        smoothedRMS = coeff * smoothedRMS
-            + (1.0f - coeff) * rms;
-
-        // K-weighting approx (+4dB high shelf character)
-        float lufs = -0.691f
-            + 10.0f * std::log10(smoothedRMS * smoothedRMS
-            * 2.0f + 1e-10f);
-
         currentLUFS = lufs;
     }
 
@@ -1090,7 +1069,6 @@ public:
     float getCurrentLUFS() const { return currentLUFS; }
 
 private:
-    float smoothedRMS  = 0.0f;
     float currentLUFS  = -70.0f;
 };
 

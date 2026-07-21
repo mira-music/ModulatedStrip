@@ -399,10 +399,14 @@ void ModulatedStripEditor::updateEQCurve()
     float highFreq = processor.apvts
         .getRawParameterValue("eqHighFreq")->load();
 
+    int eqModel = static_cast<int>(processor.apvts
+        .getRawParameterValue("eqModel")->load());
+
     eqCurveDisplay.updateCurve(44100.0,
         lowGain, lowFreq,
         midGain, midFreq, midQ,
-        highGain, highFreq);
+        highGain, highFreq,
+        eqModel);
 }
 
 //==============================================================================
